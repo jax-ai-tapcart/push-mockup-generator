@@ -66,10 +66,32 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;color:var(--text-muted);text-align:center}
 .placeholder-icon{font-size:48px;margin-bottom:16px;opacity:.3}
 .placeholder p{font-size:14px}
+.api-key-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:1000;display:flex;align-items:center;justify-content:center}
+.api-key-modal{background:#fff;border-radius:28px;padding:32px;width:400px;max-width:90vw;text-align:center}
+.api-key-modal h2{font-size:20px;font-weight:700;color:#000;margin-bottom:8px}
+.api-key-modal .subtitle{font-size:13px;color:#666;margin-bottom:24px;line-height:1.4}
+.api-key-modal input{width:100%;padding:12px 16px;border:2px solid #e0e0e0;border-radius:10px;font-size:15px;font-family:var(--font);outline:none;transition:border-color .2s;background:#fafafa;color:#000}
+.api-key-modal input:focus{border-color:#6C5CE7}
+.api-key-modal .modal-btn{width:100%;padding:12px;border:none;border-radius:10px;background:#6C5CE7;color:#fff;font-size:15px;font-weight:600;cursor:pointer;margin-top:16px;font-family:var(--font);transition:background .2s}
+.api-key-modal .modal-btn:hover{background:#7c6ef7}
+.api-key-modal .modal-error{color:#ff4757;font-size:13px;margin-top:8px;min-height:18px}
+.settings-btn{background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:13px;padding:6px 12px;cursor:pointer;transition:all .2s;font-family:var(--font)}
+.settings-btn:hover{border-color:var(--accent);color:var(--text)}
+.settings-wrap{position:relative}
+.settings-panel{position:absolute;top:100%;right:0;margin-top:8px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;min-width:260px;z-index:100;display:none}
+.settings-panel.open{display:block}
+.settings-panel .key-display{font-family:monospace;font-size:13px;color:var(--text);background:var(--surface2);padding:8px 12px;border-radius:6px;margin-bottom:12px;word-break:break-all}
+.settings-panel .panel-btns{display:flex;gap:8px}
+.settings-panel .panel-btns button{flex:1;padding:8px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);transition:all .2s}
+.settings-panel .btn-update{background:var(--accent);color:#fff;border:none}
+.settings-panel .btn-update:hover{background:var(--accent-hover)}
+.settings-panel .btn-clear{background:transparent;color:#ff6b6b;border:1px solid #ff6b6b}
+.settings-panel .btn-clear:hover{background:rgba(255,107,107,.1)}
 </style>
 </head>
 <body>
-<header class="app-header"><div class="brand">TAPCART</div><h1>Push Notification Generator</h1></header>
+<div class="api-key-overlay" id="apiKeyOverlay" style="display:none"><div class="api-key-modal"><h2>Enter your Gemini API Key</h2><p class="subtitle">Your key is saved in this browser only and sent directly to Google.<br>It's never stored on any server.</p><input type="password" id="apiKeyInput" placeholder="AIza..." onkeydown="if(event.key==='Enter')saveApiKey()"><button class="modal-btn" onclick="saveApiKey()">Save &amp; Continue</button><div class="modal-error" id="modalError"></div></div></div>
+<header class="app-header"><div class="brand">TAPCART</div><h1>Push Notification Generator</h1><div class="settings-wrap"><button class="settings-btn" onclick="toggleSettings()">⚙ API Key</button><div class="settings-panel" id="settingsPanel"><div class="key-display" id="keyDisplay"></div><div class="panel-btns"><button class="btn-update" onclick="showKeyModal()">Update Key</button><button class="btn-clear" onclick="clearApiKey()">Clear Key</button></div></div></div></header>
 <div class="tabs"><button class="tab-btn active" onclick="switchTab('single')">Single URL</button><button class="tab-btn" onclick="switchTab('bulk')">Bulk Upload</button></div>
 <div class="container">
 <div id="tab-single" class="tab-content active"><div class="panel"><div class="panel-left">
@@ -99,7 +121,14 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </div>
 <script>
 
-const GEMINI_URL="/api/gemini";
+function getApiKey(){return localStorage.getItem('gemini_api_key')||''}
+function saveApiKey(){var k=document.getElementById('apiKeyInput').value.trim();if(!k.startsWith('AIza')){document.getElementById('modalError').textContent='Key must start with "AIza"';return}localStorage.setItem('gemini_api_key',k);document.getElementById('apiKeyOverlay').style.display='none';document.getElementById('apiKeyInput').value='';document.getElementById('modalError').textContent='';updateKeyDisplay()}
+function showKeyModal(){document.getElementById('settingsPanel').classList.remove('open');document.getElementById('apiKeyOverlay').style.display='flex';document.getElementById('apiKeyInput').value='';document.getElementById('modalError').textContent='';setTimeout(function(){document.getElementById('apiKeyInput').focus()},100)}
+function clearApiKey(){localStorage.removeItem('gemini_api_key');document.getElementById('settingsPanel').classList.remove('open');showKeyModal()}
+function toggleSettings(){var p=document.getElementById('settingsPanel');p.classList.toggle('open');if(p.classList.contains('open'))updateKeyDisplay()}
+function updateKeyDisplay(){var k=getApiKey();var el=document.getElementById('keyDisplay');if(k){el.textContent=k.substring(0,8)+String.fromCharCode(8226).repeat(8)}else{el.textContent='No key set'}}
+document.addEventListener('click',function(e){var w=document.querySelector('.settings-wrap');if(w&&!w.contains(e.target)){document.getElementById('settingsPanel').classList.remove('open')}});
+(function(){if(!getApiKey()){document.getElementById('apiKeyOverlay').style.display='flex';setTimeout(function(){document.getElementById('apiKeyInput').focus()},100)}})();
 let singleData=null,bulkData=[],bulkIdx=0;
 
 function switchTab(t){
@@ -120,7 +149,7 @@ async function callGemini(url,saleType,product){
   if(saleType)ctx+="The sale/message type is: "+saleType+". Incorporate this into the notification copy. ";
   if(product)ctx+="The specific product to feature is: "+product+". Reference this product in the copy. ";
   const prompt="Analyze this brand website: "+url+"\n\n"+ctx+"\nReturn a JSON object with these fields:\n{\n  \"brandName\": \"string - the brand name\",\n  \"logoUrl\": \"string - direct URL to the brand logo (prefer SVG or PNG, look for og:image, favicon, or logo in header). Try the favicon at the domain root.\",\n  \"heroImageUrl\": \"string - a high quality lifestyle or product image URL from this brand website (look for og:image, hero images, featured product photos). Must be a direct image URL.\",\n  \"notificationTitle\": \"string - a compelling push notification title in the brand voice (15-40 chars, can include 1 emoji)\",\n  \"notificationBody\": \"string - the push notification body text in the brand exact voice and tone (40-90 chars, 1-2 lines max). Should sound completely authentic to this brand.\",\n  \"brandColors\": {\n    \"primary\": \"string - hex color\",\n    \"background\": \"string - hex color\"\n  }\n}\n\nRules:\n- The copy MUST sound like this brand wrote it, not generic marketing speak\n- Use their actual tone: luxury brands = aspirational/minimal, streetwear = hype/energetic, wellness = warm/empowering, etc.\n- For image URLs: prefer absolute URLs starting with https://, avoid data URIs\n- Return ONLY the JSON object, no markdown fences, no explanation";
-  const resp=await fetch(GEMINI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7}})});
+    const apiKey=getApiKey();if(!apiKey){showKeyModal();throw new Error("Please enter your Gemini API key first")}const resp=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7}})});
   if(!resp.ok){const e=await resp.text();throw new Error("Gemini API error ("+resp.status+"): "+e.substring(0,200))}
   const data=await resp.json();
   const text=data.candidates?.[0]?.content?.parts?.[0]?.text;
