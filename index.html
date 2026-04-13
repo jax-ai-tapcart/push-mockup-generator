@@ -154,38 +154,38 @@ function showError(id,msg){document.getElementById(id).innerHTML=`<div class="er
 function clearError(id){document.getElementById(id).innerHTML=""}
 
 async function fetchBrandMeta(url){
-  try{
-    const proxyUrl="https://api.allorigins.win/get?url="+encodeURIComponent(url);
-    const resp=await fetch(proxyUrl,{signal:AbortSignal.timeout(8000)});
-    if(!resp.ok)return{};
-    const json=await resp.json();
-    const html=json.contents||"";
-    const parser=new DOMParser();
-    const doc=parser.parseFromString(html,"text/html");
-    let heroImageUrl="";
-    const ogImage=doc.querySelector('meta[property="og:image"]')||doc.querySelector('meta[name="twitter:image"]');
-    if(ogImage){
-      heroImageUrl=ogImage.getAttribute("content")||"";
-      if(heroImageUrl&&!heroImageUrl.startsWith("http")){try{heroImageUrl=new URL(heroImageUrl,url).href}catch(e){heroImageUrl=""}}
-    }
-    let logoUrl="";
-    const appleIcon=doc.querySelector('link[rel="apple-touch-icon"]');
-    if(appleIcon){
-      logoUrl=appleIcon.getAttribute("href")||"";
-      if(logoUrl&&!logoUrl.startsWith("http")){try{logoUrl=new URL(logoUrl,url).href}catch(e){logoUrl=""}}
-    }
-    if(!logoUrl){
-      const iconLink=doc.querySelector('link[rel="shortcut icon"]')||doc.querySelector('link[rel="icon"]');
-      if(iconLink){
-        logoUrl=iconLink.getAttribute("href")||"";
-        if(logoUrl&&!logoUrl.startsWith("http")){try{logoUrl=new URL(logoUrl,url).href}catch(e){logoUrl=""}}
+  const domain=new URL(url).hostname;
+  const logoUrl="https://www.google.com/s2/favicons?domain="+domain+"&sz=128";
+  let heroImageUrl="";
+  const proxies=[
+    "https://corsproxy.io/?url="+encodeURIComponent(url),
+    "https://api.allorigins.win/get?url="+encodeURIComponent(url)
+  ];
+  for(const proxyUrl of proxies){
+    try{
+      const resp=await fetch(proxyUrl,{signal:AbortSignal.timeout(7000)});
+      if(!resp.ok)continue;
+      let rawHtml="";
+      const ct=resp.headers.get("content-type")||"";
+      if(ct.includes("json")){
+        const json=await resp.json();
+        rawHtml=json.contents||json.data||"";
+      }else{
+        rawHtml=await resp.text();
       }
-    }
-    if(!logoUrl){try{logoUrl=new URL(url).origin+"/favicon.ico"}catch(e){}}
-    return{heroImageUrl,logoUrl};
-  }catch(e){console.warn("fetchBrandMeta failed:",e);return{}}
+      if(!rawHtml)continue;
+      const parser=new DOMParser();
+      const doc=parser.parseFromString(rawHtml,"text/html");
+      const ogImage=doc.querySelector('meta[property="og:image"]')||doc.querySelector('meta[name="twitter:image"]');
+      if(ogImage){
+        let src=ogImage.getAttribute("content")||"";
+        if(src&&!src.startsWith("http")){try{src=new URL(src,url).href}catch(e){src=""}}
+        if(src){heroImageUrl=src;break;}
+      }
+    }catch(e){continue;}
+  }
+  return{heroImageUrl,logoUrl};
 }
-
 async function callGemini(url,saleType,product){
   const meta=await fetchBrandMeta(url);
   let ctx="";
