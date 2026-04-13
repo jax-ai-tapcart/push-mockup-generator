@@ -153,21 +153,60 @@ function escAttr(s){return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;"
 function showError(id,msg){document.getElementById(id).innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`}
 function clearError(id){document.getElementById(id).innerHTML=""}
 
+async function fetchBrandMeta(url){
+  try{
+    const proxyUrl="https://api.allorigins.win/get?url="+encodeURIComponent(url);
+    const resp=await fetch(proxyUrl,{signal:AbortSignal.timeout(8000)});
+    if(!resp.ok)return{};
+    const json=await resp.json();
+    const html=json.contents||"";
+    const parser=new DOMParser();
+    const doc=parser.parseFromString(html,"text/html");
+    let heroImageUrl="";
+    const ogImage=doc.querySelector('meta[property="og:image"]')||doc.querySelector('meta[name="twitter:image"]');
+    if(ogImage){
+      heroImageUrl=ogImage.getAttribute("content")||"";
+      if(heroImageUrl&&!heroImageUrl.startsWith("http")){try{heroImageUrl=new URL(heroImageUrl,url).href}catch(e){heroImageUrl=""}}
+    }
+    let logoUrl="";
+    const appleIcon=doc.querySelector('link[rel="apple-touch-icon"]');
+    if(appleIcon){
+      logoUrl=appleIcon.getAttribute("href")||"";
+      if(logoUrl&&!logoUrl.startsWith("http")){try{logoUrl=new URL(logoUrl,url).href}catch(e){logoUrl=""}}
+    }
+    if(!logoUrl){
+      const iconLink=doc.querySelector('link[rel="shortcut icon"]')||doc.querySelector('link[rel="icon"]');
+      if(iconLink){
+        logoUrl=iconLink.getAttribute("href")||"";
+        if(logoUrl&&!logoUrl.startsWith("http")){try{logoUrl=new URL(logoUrl,url).href}catch(e){logoUrl=""}}
+      }
+    }
+    if(!logoUrl){try{logoUrl=new URL(url).origin+"/favicon.ico"}catch(e){}}
+    return{heroImageUrl,logoUrl};
+  }catch(e){console.warn("fetchBrandMeta failed:",e);return{}}
+}
+
 async function callGemini(url,saleType,product){
+  const meta=await fetchBrandMeta(url);
   let ctx="";
   if(saleType)ctx+="The sale/message type is: "+saleType+". Incorporate this into the notification copy. ";
   if(product)ctx+="The specific product to feature is: "+product+". Reference this product in the copy. ";
-  const prompt="Analyze this brand website: "+url+"\n\n"+ctx+"\nReturn a JSON object with these fields:\n{\n  \"brandName\": \"string - the brand name\",\n  \"logoUrl\": \"string - the URL to use as the app icon. First try the favicon: construct the URL as https://<domain>/favicon.ico or https://<domain>/favicon.png. If the brand has apple-touch-icon links in their HTML, use that URL instead as it will be higher quality. Return a direct absolute URL.\",\n  \"heroImageUrl\": \"string - find the og:image meta tag from this brand's website (look for <meta property=\\\"og:image\\\"> or <meta name=\\\"twitter:image\\\">). Return the full absolute URL. This is the most important field — always try og:image first.\",\n  \"notificationTitle\": \"string - a compelling push notification title in the brand voice (15-40 chars, can include 1 emoji)\",\n  \"notificationBody\": \"string - the push notification body text in the brand exact voice and tone (40-90 chars, 1-2 lines max). Should sound completely authentic to this brand.\",\n  \"brandColors\": {\n    \"primary\": \"string - hex color\",\n    \"background\": \"string - hex color\"\n  }\n}\n\nRules:\n- The copy MUST sound like this brand wrote it, not generic marketing speak\n- Use their actual tone: luxury brands = aspirational/minimal, streetwear = hype/energetic, wellness = warm/empowering, etc.\n- For image URLs: prefer absolute URLs starting with https://, avoid data URIs\n- Return ONLY the JSON object, no markdown fences, no explanation";
-    const apiKey=getApiKey();if(!apiKey){showKeyModal();throw new Error("Please enter your Gemini API key first")}const resp=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7}})});
+  const prompt="Analyze this brand website: "+url+"\n\n"+ctx+"\nReturn a JSON object with ONLY these fields:\n{\n  \"brandName\": \"string - the brand name\",\n  \"notificationTitle\": \"string - push notification title in brand voice (15-40 chars, 1 emoji ok)\",\n  \"notificationBody\": \"string - push notification body in brand tone (40-90 chars). Sound authentic.\",\n  \"brandColors\": {\n    \"primary\": \"string - hex color\",\n    \"background\": \"string - hex color\"\n  }\n}\n\nRules:\n- Copy MUST sound like this brand wrote it\n- Use actual brand tone: luxury=aspirational, streetwear=hype, wellness=warm\n- Return ONLY JSON, no markdown fences";
+  const apiKey=getApiKey();
+  if(!apiKey){showKeyModal();throw new Error("Please enter your Gemini API key first")}
+  const resp=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7}})});
   if(!resp.ok){const e=await resp.text();throw new Error("Gemini API error ("+resp.status+"): "+e.substring(0,200))}
   const data=await resp.json();
   const text=data.candidates?.[0]?.content?.parts?.[0]?.text;
   if(!text)throw new Error("No response from Gemini");
   let cleaned=text.trim();
   if(cleaned.startsWith("```"))cleaned=cleaned.replace(/^```(?:json)?\n?/,"").replace(/\n?```$/,"");
-  try{return JSON.parse(cleaned)}catch(e){throw new Error("Failed to parse Gemini response: "+cleaned.substring(0,200))}
+  let result;
+  try{result=JSON.parse(cleaned)}catch(e){throw new Error("Failed to parse Gemini response: "+cleaned.substring(0,200))}
+  result.logoUrl=meta.logoUrl||"";
+  result.heroImageUrl=meta.heroImageUrl||"";
+  return result;
 }
-
 function buildCard(d,id){
   const fb=(d.brandColors&&d.brandColors.primary)||"#6C5CE7";
   const ini=(d.brandName||"?")[0].toUpperCase();
