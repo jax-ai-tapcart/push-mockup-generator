@@ -153,59 +153,212 @@ function escAttr(s){return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;"
 function showError(id,msg){document.getElementById(id).innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`}
 function clearError(id){document.getElementById(id).innerHTML=""}
 
-async function fetchBrandMeta(url){
-  const domain=new URL(url).hostname;
-  const logoUrl="https://www.google.com/s2/favicons?domain="+domain+"&sz=128";
-  let heroImageUrl="";
-  const proxies=[
-    "https://corsproxy.io/?url="+encodeURIComponent(url),
-    "https://api.allorigins.win/get?url="+encodeURIComponent(url)
+function validateImage(url){
+  return new Promise(function(resolve){
+    var img=new Image();
+    img.crossOrigin="anonymous";
+    var t=setTimeout(function(){resolve(false)},5000);
+    img.onload=function(){
+      clearTimeout(t);
+      var w=img.naturalWidth,h=img.naturalHeight,r=w/h;
+      resolve((w>=300&&h>=200&&r>=0.4&&r<=3.0)?url:false);
+    };
+    img.onerror=function(){clearTimeout(t);resolve(false);};
+    img.src=url;
+  });
+}
+
+async function toDataUrl(url){
+  try{
+    var resp=await fetch(url,{mode:"cors"});
+    var blob=await resp.blob();
+    return new Promise(function(resolve,reject){
+      var reader=new FileReader();
+      reader.onloadend=function(){resolve(reader.result);};
+      reader.onerror=reject;
+      reader.readAsDataURL(blob);
+    });
+  }catch(e){return url;}
+}
+
+async function fetchLogo(domain){
+  var sources=[
+    "https://www.google.com/s2/favicons?domain="+domain+"&sz=128",
+    "https://logo.clearbit.com/"+domain,
+    "https://icon.horse/icon/"+domain
   ];
-  for(const proxyUrl of proxies){
-    try{
-      const resp=await fetch(proxyUrl,{signal:AbortSignal.timeout(7000)});
-      if(!resp.ok)continue;
-      let rawHtml="";
-      const ct=resp.headers.get("content-type")||"";
-      if(ct.includes("json")){
-        const json=await resp.json();
-        rawHtml=json.contents||json.data||"";
-      }else{
-        rawHtml=await resp.text();
+  for(var i=0;i<sources.length;i++){
+    var ok=await new Promise(function(resolve){
+      var img=new Image();
+      img.crossOrigin="anonymous";
+      var t=setTimeout(function(){resolve(false)},4000);
+      img.onload=function(){
+        clearTimeout(t);
+        resolve(img.naturalWidth>16?true:false);
+      };
+      img.onerror=function(){clearTimeout(t);resolve(false);};
+      img.src=sources[i];
+    });
+    if(ok)return sources[i];
+  }
+  return null;
+}
+
+async function collectCandidateImages(brandUrl){
+  var candidates=[],seen=new Set();
+  function add(u){if(u&&typeof u==="string"&&u.startsWith("http")&&!seen.has(u)){seen.add(u);candidates.push(u);}}
+  // Source A: microlink
+  try{
+    var ml=await fetch("https://api.microlink.io/?url="+encodeURIComponent(brandUrl)+"&palette=true&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
+    if(ml.ok){
+      var mld=await ml.json();
+      if(mld.data){
+        if(mld.data.image&&mld.data.image.url)add(mld.data.image.url);
+        if(mld.data.logo&&mld.data.logo.url)add(mld.data.logo.url);
       }
-      if(!rawHtml)continue;
-      const parser=new DOMParser();
-      const doc=parser.parseFromString(rawHtml,"text/html");
-      const ogImage=doc.querySelector('meta[property="og:image"]')||doc.querySelector('meta[name="twitter:image"]');
-      if(ogImage){
-        let src=ogImage.getAttribute("content")||"";
-        if(src&&!src.startsWith("http")){try{src=new URL(src,url).href}catch(e){src=""}}
-        if(src){heroImageUrl=src;break;}
+    }
+  }catch(e){}
+  // Source B: Shopify products.json
+  var prodUrl=brandUrl.replace(/\/+$/,"")+ "/products.json?limit=6";
+  var proxies=[
+    "https://corsproxy.io/?url="+encodeURIComponent(prodUrl),
+    "https://api.allorigins.win/get?url="+encodeURIComponent(prodUrl)
+  ];
+  for(var pi=0;pi<proxies.length;pi++){
+    try{
+      var pr=await fetch(proxies[pi],{signal:AbortSignal.timeout(7000)});
+      if(!pr.ok)continue;
+      var pj;
+      var ct=pr.headers.get("content-type")||"";
+      if(ct.includes("json")){
+        var raw=await pr.json();
+        pj=raw.contents?JSON.parse(raw.contents):raw;
+      }else{pj=JSON.parse(await pr.text());}
+      if(pj&&Array.isArray(pj.products)){
+        pj.products.slice(0,6).forEach(function(p){if(p.images&&p.images[0]&&p.images[0].src)add(p.images[0].src);});
+        break;
       }
     }catch(e){continue;}
   }
-  return{heroImageUrl,logoUrl};
+  // Source C: Homepage img scraping
+  var homeProxies=[
+    "https://corsproxy.io/?url="+encodeURIComponent(brandUrl),
+    "https://api.allorigins.win/get?url="+encodeURIComponent(brandUrl)
+  ];
+  var keepRe=/800|1000|1200|large|grande|hero|lifestyle/i;
+  var discardRe=/logo|icon|badge|sprite|pixel|tracking|1x1/i;
+  for(var hi=0;hi<homeProxies.length;hi++){
+    try{
+      var hr=await fetch(homeProxies[hi],{signal:AbortSignal.timeout(7000)});
+      if(!hr.ok)continue;
+      var rawHtml="";
+      var hct=hr.headers.get("content-type")||"";
+      if(hct.includes("json")){var hj=await hr.json();rawHtml=hj.contents||hj.data||"";}
+      else{rawHtml=await hr.text();}
+      if(!rawHtml)continue;
+      var parser=new DOMParser();
+      var doc=parser.parseFromString(rawHtml,"text/html");
+      var ogImg=doc.querySelector('meta[property="og:image"]');
+      if(ogImg){
+        var ogSrc=ogImg.getAttribute("content")||"";
+        if(ogSrc&&!ogSrc.startsWith("http")){try{ogSrc=new URL(ogSrc,brandUrl).href;}catch(e){ogSrc="";}}
+        if(ogSrc)add(ogSrc);
+      }
+      var scraped=0;
+      doc.querySelectorAll("img").forEach(function(el){
+        if(scraped>=6)return;
+        var src=el.getAttribute("src")||el.getAttribute("data-src")||"";
+        if(!src)return;
+        if(!src.startsWith("http")){try{src=new URL(src,brandUrl).href;}catch(e){return;}}
+        if(discardRe.test(src))return;
+        if(keepRe.test(src)){add(src);scraped++;}
+      });
+      break;
+    }catch(e){continue;}
+  }
+  return candidates.slice(0,10);
 }
-async function callGemini(url,saleType,product){
-  const meta=await fetchBrandMeta(url);
-  let ctx="";
-  if(saleType)ctx+="The sale/message type is: "+saleType+". Incorporate this into the notification copy. ";
-  if(product)ctx+="The specific product to feature is: "+product+". Reference this product in the copy. ";
-  const prompt="Analyze this brand website: "+url+"\n\n"+ctx+"\nReturn a JSON object with ONLY these fields:\n{\n  \"brandName\": \"string - the brand name\",\n  \"notificationTitle\": \"string - push notification title in brand voice (15-40 chars, 1 emoji ok)\",\n  \"notificationBody\": \"string - push notification body in brand tone (40-90 chars). Sound authentic.\",\n  \"brandColors\": {\n    \"primary\": \"string - hex color\",\n    \"background\": \"string - hex color\"\n  }\n}\n\nRules:\n- Copy MUST sound like this brand wrote it\n- Use actual brand tone: luxury=aspirational, streetwear=hype, wellness=warm\n- Return ONLY JSON, no markdown fences";
-  const apiKey=getApiKey();
-  if(!apiKey){showKeyModal();throw new Error("Please enter your Gemini API key first")}
-  const resp=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7}})});
-  if(!resp.ok){const e=await resp.text();throw new Error("Gemini API error ("+resp.status+"): "+e.substring(0,200))}
-  const data=await resp.json();
-  const text=data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if(!text)throw new Error("No response from Gemini");
-  let cleaned=text.trim();
-  if(cleaned.startsWith("```"))cleaned=cleaned.replace(/^```(?:json)?\n?/,"").replace(/\n?```$/,"");
-  let result;
-  try{result=JSON.parse(cleaned)}catch(e){throw new Error("Failed to parse Gemini response: "+cleaned.substring(0,200))}
-  result.logoUrl=meta.logoUrl||"";
-  result.heroImageUrl=meta.heroImageUrl||"";
-  return result;
+
+async function callGemini(url,saleType,product,statusFn){
+  var domain=new URL(url).hostname;
+  if(statusFn)statusFn("finding images...");
+  var rawCandidates=await collectCandidateImages(url);
+  if(statusFn)statusFn("validating...");
+  var validUrls=(await Promise.all(rawCandidates.map(validateImage))).filter(Boolean);
+  if(validUrls.length===0)throw new Error("No suitable images found. Upload one for best results.");
+  if(statusFn)statusFn("generating copy...");
+  var apiKey=getApiKey();
+  if(!apiKey){showKeyModal();throw new Error("Please enter your Gemini API key first");}
+
+  async function geminiCall(urls,extra){
+    var numbered=urls.map(function(u,i){return(i+1)+". "+u;}).join("\n");
+    var saleCtx=saleType||"not specified - pick the best angle";
+    var prodCtx=product||"not specified";
+    var prompt="You are a mobile push notification copywriter for a Shopify brand.\n\n";
+    prompt+="Brand URL: "+url+"\n";
+    prompt+="Sale/message context: "+saleCtx+"\n";
+    prompt+="Specific product: "+prodCtx+"\n\n";
+    prompt+="Here are image URLs confirmed to be loadable from this brand website:\n"+numbered+"\n\n";
+    prompt+="Your job:\n";
+    prompt+="1. Pick the single best image for an iOS push notification. Prefer: product shots, lifestyle photography, premium on-brand imagery. Avoid: wide banners, website headers, text-heavy images.\n";
+    prompt+="2. Write a notification title (15-40 characters, 1 emoji allowed, punchy, brand-appropriate).\n";
+    prompt+="3. Write a notification body (40-90 characters, brand voice, must specifically reference what is visible in the chosen image).\n";
+    prompt+="4. Infer the brand name from the URL.\n";
+    prompt+="5. Suggest a background color for the notification card (hex, on-brand).\n\n";
+    if(extra)prompt+=extra+"\n\n";
+    prompt+="Respond ONLY with valid JSON, no markdown:\n";
+    prompt+="{\n";
+    prompt+="  \"brand_name\": \"\",\n";
+    prompt+="  \"chosen_image_url\": \"\",\n";
+    prompt+="  \"image_description\": \"\",\n";
+    prompt+="  \"title\": \"\",\n";
+    prompt+="  \"body\": \"\",\n";
+    prompt+="  \"background_color\": \"\"\n";
+    prompt+="}";
+    var resp=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(apiKey),{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7}})
+    });
+    if(!resp.ok){var e=await resp.text();throw new Error("Gemini API error ("+resp.status+"): "+e.substring(0,200));}
+    var data=await resp.json();
+    var text=data.candidates&&data.candidates[0]&&data.candidates[0].content&&data.candidates[0].content.parts&&data.candidates[0].content.parts[0]&&data.candidates[0].content.parts[0].text;
+    if(!text)throw new Error("No response from Gemini");
+    var cleaned=text.trim();
+    var fenceStart=/^[`]{3}(?:json)?\n?/;
+    var fenceEnd=/\n?[`]{3}$/;
+    cleaned=cleaned.replace(fenceStart,"").replace(fenceEnd,"");
+    return JSON.parse(cleaned);
+  }
+
+  // Retry loop: validate chosen image, retry with remaining if fails
+  var result=null,retryCount=0;
+  while(validUrls.length>0&&retryCount<3){
+    try{
+      var extraMsg=retryCount>0?"The previously chosen image failed to load. Pick the next best option from the remaining URLs.":"";
+      result=await geminiCall(validUrls,extraMsg);
+    }catch(parseErr){
+      if(retryCount===0){try{result=await geminiCall(validUrls,"");}catch(e2){throw e2;}}
+      else throw parseErr;
+    }
+    if(!result||!result.chosen_image_url)break;
+    var chosenValid=await validateImage(result.chosen_image_url);
+    if(chosenValid)break;
+    validUrls=validUrls.filter(function(u){return u!==result.chosen_image_url;});
+    result=null;
+    retryCount++;
+  }
+  if(!result)throw new Error("Could not find a suitable image. Upload one for best results.");
+
+  var logoUrl=await fetchLogo(domain);
+  return {
+    brandName:result.brand_name||"",
+    notificationTitle:result.title||"",
+    notificationBody:result.body||"",
+    heroImageUrl:result.chosen_image_url||"",
+    logoUrl:logoUrl||"",
+    brandColors:{primary:result.background_color||"#6C5CE7",background:result.background_color||"#000"}
+  };
 }
 function buildCard(d,id){
   const fb=(d.brandColors&&d.brandColors.primary)||"#6C5CE7";
@@ -242,20 +395,24 @@ function buildCard(d,id){
 }
 
 async function generateSingle(){
-  const url=document.getElementById("singleUrl").value.trim();
-  if(!url){showError("singleError","Please enter a brand URL");return}
+  var url=document.getElementById("singleUrl").value.trim();
+  if(!url){showError("singleError","Please enter a brand URL");return;}
   clearError("singleError");
-  const btn=document.getElementById("singleGenBtn");
+  var btn=document.getElementById("singleGenBtn");
   btn.disabled=true;btn.textContent="Generating...";
-  document.getElementById("singlePreview").innerHTML='<div class="loading"><div class="spinner"></div><div style="color:var(--text-muted);font-size:14px">Analyzing brand...</div></div>';
+  var previewEl=document.getElementById("singlePreview");
+  function updateStatus(msg){
+    previewEl.innerHTML='<div class="loading"><div class="spinner"></div><div style="color:var(--text-muted);font-size:14px">'+escHtml(msg)+'</div></div>';
+  }
+  updateStatus("Finding brand images...");
   document.getElementById("singleConfig").style.display="none";
   document.getElementById("singleExportBtn").style.display="none";
   try{
-    const saleType=document.getElementById("singleSaleType").value.trim();
-    const product=document.getElementById("singleProduct").value.trim();
-    singleData=await callGemini(url,saleType,product);
+    var saleType=document.getElementById("singleSaleType").value.trim();
+    var product=document.getElementById("singleProduct").value.trim();
+    singleData=await callGemini(url,saleType,product,function(s){updateStatus(s);});
     singleData._url=url;
-    document.getElementById("singlePreview").innerHTML=buildCard(singleData,"singleCard");
+    previewEl.innerHTML=buildCard(singleData,"singleCard");
     document.getElementById("cfgTitle").value=singleData.notificationTitle||"";
     document.getElementById("cfgBody").value=singleData.notificationBody||"";
     document.getElementById("cfgIcon").value=singleData.logoUrl||"";
@@ -263,9 +420,9 @@ async function generateSingle(){
     document.getElementById("singleConfig").style.display="block";
     document.getElementById("singleExportBtn").style.display="inline-flex";
   }catch(err){
-    document.getElementById("singlePreview").innerHTML='<div class="placeholder"><div class="placeholder-icon">&#9888;&#65039;</div><p>Generation failed</p></div>';
+    previewEl.innerHTML='<div class="placeholder"><div class="placeholder-icon">&#9888;&#65039;</div><p>'+escHtml(err.message)+'</p></div>';
     showError("singleError",err.message);
-  }finally{btn.disabled=false;btn.textContent="Generate"}
+  }finally{btn.disabled=false;btn.textContent="Generate";}
 }
 
 function applySingleOverrides(){
@@ -277,38 +434,51 @@ function applySingleOverrides(){
   document.getElementById("singlePreview").innerHTML=buildCard(singleData,"singleCard");
 }
 
+async function convertCardImagesToBase64(cardEl){
+  var imgs=cardEl.querySelectorAll("img");
+  var promises=[];
+  imgs.forEach(function(img){
+    if(img.src&&img.src.startsWith("http")){
+      promises.push(toDataUrl(img.src).then(function(b64){img.src=b64;}));
+    }
+  });
+  await Promise.all(promises);
+}
+
 async function exportSingle(){
-  const card=document.getElementById("singleCard");
+  var card=document.getElementById("singleCard");
   if(!card)return;
   try{
-    const canvas=await html2canvas(card,{useCORS:true,allowTaint:true,scale:2,backgroundColor:null});
-    const link=document.createElement("a");
-    link.download=(singleData?.brandName||"notification")+"-push-mockup.png";
+    await convertCardImagesToBase64(card);
+    var canvas=await html2canvas(card,{useCORS:true,allowTaint:true,scale:2,backgroundColor:null});
+    var link=document.createElement("a");
+    link.download=(singleData&&singleData.brandName||"notification")+"-push-mockup.png";
     link.href=canvas.toDataURL("image/png");
     link.click();
-  }catch(e){showError("singleError","Export failed: "+e.message)}
+  }catch(e){showError("singleError","Export failed: "+e.message);}
 }
 
 async function generateBulk(){
-  const raw=document.getElementById("bulkUrls").value.trim();
-  if(!raw){showError("bulkError","Please enter at least one URL");return}
+  var raw=document.getElementById("bulkUrls").value.trim();
+  if(!raw){showError("bulkError","Please enter at least one URL");return;}
   clearError("bulkError");
-  const urls=raw.split("\n").map(u=>u.trim()).filter(Boolean).slice(0,5);
-  if(!urls.length){showError("bulkError","No valid URLs found");return}
-  const btn=document.getElementById("bulkGenBtn");
+  var urls=raw.split("\n").map(function(u){return u.trim();}).filter(Boolean).slice(0,5);
+  if(!urls.length){showError("bulkError","No valid URLs found");return;}
+  var btn=document.getElementById("bulkGenBtn");
   btn.disabled=true;btn.textContent="Generating...";
-  const progress=document.getElementById("bulkProgress");
+  var progress=document.getElementById("bulkProgress");
   progress.style.display="block";
   document.getElementById("bulkExportBtn").style.display="none";
   document.getElementById("bulkOverrides").style.display="none";
-  document.getElementById("bulkPreview").innerHTML='<div class="loading"><div class="spinner"></div><div style="color:var(--text-muted);font-size:14px">Analyzing brands...</div></div>';
+  document.getElementById("bulkPreview").innerHTML='<div class="loading"><div class="spinner"></div><div style="color:var(--text-muted);font-size:14px">Starting...</div></div>';
   bulkData=[];
-  const saleType=document.getElementById("bulkSaleType").value.trim();
-  const product=document.getElementById("bulkProduct").value.trim();
-  for(let i=0;i<urls.length;i++){
-    progress.textContent="Processing "+(i+1)+" of "+urls.length+"...";
+  var saleType=document.getElementById("bulkSaleType").value.trim();
+  var product=document.getElementById("bulkProduct").value.trim();
+  for(var i=0;i<urls.length;i++){
+    var brandNum="Brand "+(i+1)+" of "+urls.length;
+    progress.textContent=brandNum+" - finding images...";
     try{
-      const d=await callGemini(urls[i],saleType,product);
+      var d=await callGemini(urls[i],saleType,product,function(s){progress.textContent=brandNum+" - "+s;});
       d._url=urls[i];
       bulkData.push(d);
     }catch(e){
@@ -324,7 +494,6 @@ async function generateBulk(){
   document.getElementById("bulkOverrides").style.display="block";
   btn.disabled=false;btn.textContent="Generate All";
 }
-
 function renderBulkCarousel(){
   if(!bulkData.length)return;
   const slides=bulkData.map((d,i)=>`<div class="carousel-slide">${buildCard(d,"bulkCard"+i)}</div>`).join("");
@@ -367,17 +536,19 @@ function applyBulkOverride(i){
 }
 
 async function exportAll(){
-  for(let i=0;i<bulkData.length;i++){
-    const card=document.getElementById("bulkCard"+i);
+  if(!bulkData.length)return;
+  for(var i=0;i<bulkData.length;i++){
+    var card=document.getElementById("bulkCard"+i);
     if(!card)continue;
     try{
-      const canvas=await html2canvas(card,{useCORS:true,allowTaint:true,scale:2,backgroundColor:null});
-      const link=document.createElement("a");
-      link.download=(bulkData[i].brandName||"brand-"+(i+1))+"-push-mockup.png";
+      await convertCardImagesToBase64(card);
+      var canvas=await html2canvas(card,{useCORS:true,allowTaint:true,scale:2,backgroundColor:null});
+      var link=document.createElement("a");
+      link.download=(bulkData[i].brandName||"brand"+(i+1))+"-push-mockup.png";
       link.href=canvas.toDataURL("image/png");
       link.click();
-      await sleep(300);
-    }catch(e){console.error("Export failed for card "+i,e)}
+      await sleep(400);
+    }catch(e){console.error("Export failed for card "+i,e);}
   }
 }
 
