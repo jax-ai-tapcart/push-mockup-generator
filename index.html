@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Push Notification Generator - Tapcart</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+:root{--bg:#0f0f0f;--surface:#1a1a1a;--surface2:#252525;--border:#333;--text:#fff;--text-muted:#888;--accent:#6C5CE7;--accent-hover:#7c6ef7;--card-radius:30px;--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+.app-header{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-bottom:1px solid var(--border)}
+.app-header .brand{font-size:18px;font-weight:700;color:var(--accent);letter-spacing:.5px}
+.app-header h1{font-size:16px;font-weight:500;color:var(--text-muted)}
+.tabs{display:flex;gap:0;padding:0 32px;margin-top:24px}
+.tab-btn{padding:10px 24px;border:1px solid var(--border);background:transparent;color:var(--text-muted);font-size:14px;font-weight:500;cursor:pointer;transition:all .2s;font-family:var(--font)}
+.tab-btn:first-child{border-radius:8px 0 0 8px}
+.tab-btn:last-child{border-radius:0 8px 8px 0}
+.tab-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.container{max-width:1200px;margin:0 auto;padding:24px 32px}
+.tab-content{display:none}.tab-content.active{display:block}
+.panel{display:flex;gap:40px;align-items:flex-start;flex-wrap:wrap}
+.panel-left{flex:1;min-width:320px}.panel-right{flex:1;min-width:400px;display:flex;flex-direction:column;align-items:center}
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:13px;font-weight:500;color:var(--text-muted);margin-bottom:6px}
+.form-group input,.form-group textarea{width:100%;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;font-family:var(--font);outline:none;transition:border-color .2s}
+.form-group input:focus,.form-group textarea:focus{border-color:var(--accent)}
+.form-group textarea{resize:vertical;min-height:100px}
+.form-row{display:flex;gap:12px}.form-row .form-group{flex:1}
+.btn{padding:10px 24px;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s;font-family:var(--font)}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent-hover)}.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}.btn-secondary:hover{border-color:var(--accent)}
+.btn-row{display:flex;gap:12px;margin-top:8px}
+.notif-card{width:390px;background:#fff;border-radius:var(--card-radius);overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.12);font-family:var(--font)}
+.notif-header{padding:14px 14px 10px 14px;display:flex;flex-direction:row;align-items:flex-start}
+.notif-icon{width:40px;height:40px;border-radius:10px;object-fit:cover;flex-shrink:0}
+.notif-icon-fb{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0}
+.notif-text{flex:1;margin-left:10px;overflow:hidden}
+.notif-title-row{display:flex;justify-content:space-between;align-items:baseline}
+.notif-title{font-size:15px;font-weight:600;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.notif-time{font-size:12px;color:#8E8E93;text-transform:uppercase;flex-shrink:0;margin-left:8px}
+.notif-body{font-size:14px;font-weight:400;color:#000;line-height:1.35;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.notif-hero{width:100%;aspect-ratio:4/5;object-fit:cover;display:block}
+.notif-hero-fb{width:100%;aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;font-size:48px;color:rgba(255,255,255,.3)}
+.loading{display:flex;flex-direction:column;align-items:center;gap:16px;padding:60px 0}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-msg{color:#ff6b6b;font-size:13px;margin-top:8px;padding:8px 12px;background:rgba(255,107,107,.1);border-radius:6px}
+.config-panel{width:390px;margin-top:20px;padding:16px;background:var(--surface);border-radius:12px;border:1px solid var(--border)}
+.config-panel h3{font-size:14px;font-weight:600;margin-bottom:12px;color:var(--text-muted)}
+.config-panel .form-group{margin-bottom:10px}.config-panel input{font-size:13px;padding:8px 10px}
+.carousel{position:relative;width:390px;overflow:hidden}
+.carousel-track{display:flex;transition:transform .3s ease}
+.carousel-slide{min-width:390px}
+.carousel-nav{display:flex;justify-content:center;align-items:center;gap:16px;margin-top:16px}
+.carousel-btn{width:36px;height:36px;border-radius:50%;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.carousel-btn:hover{border-color:var(--accent)}.carousel-btn:disabled{opacity:.3;cursor:not-allowed}
+.carousel-dots{font-size:13px;color:var(--text-muted)}
+.brand-list{margin-top:20px;width:100%}
+.brand-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:8px;overflow:hidden}
+.brand-item-header{padding:10px 14px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:14px}
+.brand-item-header:hover{background:var(--surface2)}
+.brand-item-body{padding:12px 14px;border-top:1px solid var(--border);display:none}
+.brand-item.expanded .brand-item-body{display:block}
+.brand-item-chevron{transition:transform .2s}.brand-item.expanded .brand-item-chevron{transform:rotate(90deg)}
+.placeholder{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:80px 20px;color:var(--text-muted);text-align:center}
+.placeholder-icon{font-size:48px;margin-bottom:16px;opacity:.3}
+.placeholder p{font-size:14px}
+</style>
+</head>
+<body>
+<header class="app-header"><div class="brand">TAPCART</div><h1>Push Notification Generator</h1></header>
+<div class="tabs"><button class="tab-btn active" onclick="switchTab('single')">Single URL</button><button class="tab-btn" onclick="switchTab('bulk')">Bulk Upload</button></div>
+<div class="container">
+<div id="tab-single" class="tab-content active"><div class="panel"><div class="panel-left">
+<div class="form-group"><label>Brand URL</label><input type="url" id="singleUrl" placeholder="https://example.com"></div>
+<div class="form-row"><div class="form-group"><label>Sale / Message Type (optional)</label><input type="text" id="singleSaleType" placeholder="e.g. flash sale, new collection"></div><div class="form-group"><label>Specific Product (optional)</label><input type="text" id="singleProduct" placeholder="e.g. Summer Dress"></div></div>
+<div class="btn-row"><button class="btn btn-primary" id="singleGenBtn" onclick="generateSingle()">Generate</button><button class="btn btn-secondary" id="singleExportBtn" onclick="exportSingle()" style="display:none">Export PNG</button></div>
+<div id="singleError"></div>
+<div id="singleConfig" class="config-panel" style="display:none;margin-top:24px"><h3>Manual Overrides</h3>
+<div class="form-group"><label>Title</label><input type="text" id="cfgTitle"></div>
+<div class="form-group"><label>Body</label><input type="text" id="cfgBody"></div>
+<div class="form-group"><label>App Icon URL</label><input type="text" id="cfgIcon"></div>
+<div class="form-group"><label>Hero Image URL</label><input type="text" id="cfgHero"></div>
+<button class="btn btn-secondary" onclick="applySingleOverrides()">Apply Changes</button></div>
+</div>
+<div class="panel-right"><div id="singlePreview"><div class="placeholder"><div class="placeholder-icon">&#128241;</div><p>Enter a brand URL and click Generate<br>to create a push notification mockup</p></div></div></div>
+</div></div>
+<div id="tab-bulk" class="tab-content"><div class="panel"><div class="panel-left">
+<div class="form-group"><label>Brand URLs (one per line, max 5)</label><textarea id="bulkUrls" placeholder="https://brand1.com&#10;https://brand2.com&#10;https://brand3.com"></textarea></div>
+<div class="form-row"><div class="form-group"><label>Global Sale / Message Type (optional)</label><input type="text" id="bulkSaleType" placeholder="e.g. flash sale"></div><div class="form-group"><label>Global Product (optional)</label><input type="text" id="bulkProduct" placeholder="e.g. Summer Collection"></div></div>
+<div class="btn-row"><button class="btn btn-primary" id="bulkGenBtn" onclick="generateBulk()">Generate All</button><button class="btn btn-secondary" id="bulkExportBtn" onclick="exportAll()" style="display:none">Export All PNGs</button></div>
+<div id="bulkError"></div>
+<div id="bulkProgress" style="display:none;margin-top:12px;font-size:13px;color:var(--text-muted)"></div>
+<div id="bulkOverrides" class="brand-list" style="display:none"><h3 style="font-size:14px;font-weight:600;color:var(--text-muted);margin:20px 0 12px">Per-Brand Overrides</h3><div id="brandListContainer"></div></div>
+</div>
+<div class="panel-right"><div id="bulkPreview"><div class="placeholder"><div class="placeholder-icon">&#128241;</div><p>Paste brand URLs and click Generate All<br>to create multiple mockups at once</p></div></div></div>
+</div></div>
+</div>
+<script>
+const GEMINI_KEY="AIzaSyAtut7_vYKfGjGfepKmw08NwMQPVKLa8Tk";
+const GEMINI_URL=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`;
+let singleData=null,bulkData=[],bulkIdx=0;
+
+function switchTab(t){
+  document.querySelectorAll(".tab-btn").forEach((b,i)=>{
+    b.classList.toggle("active",(t==="single"&&i===0)||(t==="bulk"&&i===1));
+  });
+  document.getElementById("tab-single").classList.toggle("active",t==="single");
+  document.getElementById("tab-bulk").classList.toggle("active",t==="bulk");
+}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+function escHtml(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML}
+function escAttr(s){return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
+function showError(id,msg){document.getElementById(id).innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`}
+function clearError(id){document.getElementById(id).innerHTML=""}
+
+async function callGemini(url,saleType,product){
+  let ctx="";
+  if(saleType)ctx+="The sale/message type is: "+saleType+". Incorporate this into the notification copy. ";
+  if(product)ctx+="The specific product to feature is: "+product+". Reference this product in the copy. ";
+  const prompt="Analyze this brand website: "+url+"\n\n"+ctx+"\nReturn a JSON object with these fields:\n{\n  \"brandName\": \"string - the brand name\",\n  \"logoUrl\": \"string - direct URL to the brand logo (prefer SVG or PNG, look for og:image, favicon, or logo in header). Try the favicon at the domain root.\",\n  \"heroImageUrl\": \"string - a high quality lifestyle or product image URL from this brand website (look for og:image, hero images, featured product photos). Must be a direct image URL.\",\n  \"notificationTitle\": \"string - a compelling push notification title in the brand voice (15-40 chars, can include 1 emoji)\",\n  \"notificationBody\": \"string - the push notification body text in the brand exact voice and tone (40-90 chars, 1-2 lines max). Should sound completely authentic to this brand.\",\n  \"brandColors\": {\n    \"primary\": \"string - hex color\",\n    \"background\": \"string - hex color\"\n  }\n}\n\nRules:\n- The copy MUST sound like this brand wrote it, not generic marketing speak\n- Use their actual tone: luxury brands = aspirational/minimal, streetwear = hype/energetic, wellness = warm/empowering, etc.\n- For image URLs: prefer absolute URLs starting with https://, avoid data URIs\n- Return ONLY the JSON object, no markdown fences, no explanation";
+  const resp=await fetch(GEMINI_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7}})});
+  if(!resp.ok){const e=await resp.text();throw new Error("Gemini API error ("+resp.status+"): "+e.substring(0,200))}
+  const data=await resp.json();
+  const text=data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if(!text)throw new Error("No response from Gemini");
+  let cleaned=text.trim();
+  if(cleaned.startsWith("```"))cleaned=cleaned.replace(/^```(?:json)?\n?/,"").replace(/\n?```$/,"");
+  try{return JSON.parse(cleaned)}catch(e){throw new Error("Failed to parse Gemini response: "+cleaned.substring(0,200))}
+}
+
+function buildCard(d,id){
+  const fb=(d.brandColors&&d.brandColors.primary)||"#6C5CE7";
+  const ini=(d.brandName||"?")[0].toUpperCase();
+  let iconH;
+  if(d.logoUrl){
+    const safeUrl=escAttr(d.logoUrl);
+    const fbDiv=`<div class="notif-icon-fb" style="background:${fb}">${ini}</div>`;
+    iconH=`<img class="notif-icon" src="${safeUrl}" style="border:1px solid rgba(0,0,0,0.08)" crossorigin="anonymous" onerror="this.outerHTML=this.getAttribute('data-fb')" data-fb="${escAttr(fbDiv)}">`;
+  }else{
+    iconH=`<div class="notif-icon-fb" style="background:${fb}">${ini}</div>`;
+  }
+  let heroH;
+  if(d.heroImageUrl){
+    const safeHero=escAttr(d.heroImageUrl);
+    const fbHero=`<div class="notif-hero-fb" style="background:linear-gradient(135deg,${fb},#000)">&#128247;</div>`;
+    heroH=`<img class="notif-hero" src="${safeHero}" crossorigin="anonymous" onerror="this.outerHTML=this.getAttribute('data-fb')" data-fb="${escAttr(fbHero)}">`;
+  }else{
+    heroH=`<div class="notif-hero-fb" style="background:linear-gradient(135deg,${fb},#000)">&#128247;</div>`;
+  }
+  return `<div class="notif-card" id="${id||'card'}">
+    <div class="notif-header">
+      ${iconH}
+      <div class="notif-text">
+        <div class="notif-title-row">
+          <div class="notif-title">${escHtml(d.notificationTitle||"")}</div>
+          <div class="notif-time">now</div>
+        </div>
+        <div class="notif-body">${escHtml(d.notificationBody||"")}</div>
+      </div>
+    </div>
+    ${heroH}
+  </div>`;
+}
+
+async function generateSingle(){
+  const url=document.getElementById("singleUrl").value.trim();
+  if(!url){showError("singleError","Please enter a brand URL");return}
+  clearError("singleError");
+  const btn=document.getElementById("singleGenBtn");
+  btn.disabled=true;btn.textContent="Generating...";
+  document.getElementById("singlePreview").innerHTML='<div class="loading"><div class="spinner"></div><div style="color:var(--text-muted);font-size:14px">Analyzing brand...</div></div>';
+  document.getElementById("singleConfig").style.display="none";
+  document.getElementById("singleExportBtn").style.display="none";
+  try{
+    const saleType=document.getElementById("singleSaleType").value.trim();
+    const product=document.getElementById("singleProduct").value.trim();
+    singleData=await callGemini(url,saleType,product);
+    singleData._url=url;
+    document.getElementById("singlePreview").innerHTML=buildCard(singleData,"singleCard");
+    document.getElementById("cfgTitle").value=singleData.notificationTitle||"";
+    document.getElementById("cfgBody").value=singleData.notificationBody||"";
+    document.getElementById("cfgIcon").value=singleData.logoUrl||"";
+    document.getElementById("cfgHero").value=singleData.heroImageUrl||"";
+    document.getElementById("singleConfig").style.display="block";
+    document.getElementById("singleExportBtn").style.display="inline-flex";
+  }catch(err){
+    document.getElementById("singlePreview").innerHTML='<div class="placeholder"><div class="placeholder-icon">&#9888;&#65039;</div><p>Generation failed</p></div>';
+    showError("singleError",err.message);
+  }finally{btn.disabled=false;btn.textContent="Generate"}
+}
+
+function applySingleOverrides(){
+  if(!singleData)return;
+  singleData.notificationTitle=document.getElementById("cfgTitle").value;
+  singleData.notificationBody=document.getElementById("cfgBody").value;
+  singleData.logoUrl=document.getElementById("cfgIcon").value;
+  singleData.heroImageUrl=document.getElementById("cfgHero").value;
+  document.getElementById("singlePreview").innerHTML=buildCard(singleData,"singleCard");
+}
+
+async function exportSingle(){
+  const card=document.getElementById("singleCard");
+  if(!card)return;
+  try{
+    const canvas=await html2canvas(card,{useCORS:true,allowTaint:true,scale:2,backgroundColor:null});
+    const link=document.createElement("a");
+    link.download=(singleData?.brandName||"notification")+"-push-mockup.png";
+    link.href=canvas.toDataURL("image/png");
+    link.click();
+  }catch(e){showError("singleError","Export failed: "+e.message)}
+}
+
+async function generateBulk(){
+  const raw=document.getElementById("bulkUrls").value.trim();
+  if(!raw){showError("bulkError","Please enter at least one URL");return}
+  clearError("bulkError");
+  const urls=raw.split("\n").map(u=>u.trim()).filter(Boolean).slice(0,5);
+  if(!urls.length){showError("bulkError","No valid URLs found");return}
+  const btn=document.getElementById("bulkGenBtn");
+  btn.disabled=true;btn.textContent="Generating...";
+  const progress=document.getElementById("bulkProgress");
+  progress.style.display="block";
+  document.getElementById("bulkExportBtn").style.display="none";
+  document.getElementById("bulkOverrides").style.display="none";
+  document.getElementById("bulkPreview").innerHTML='<div class="loading"><div class="spinner"></div><div style="color:var(--text-muted);font-size:14px">Analyzing brands...</div></div>';
+  bulkData=[];
+  const saleType=document.getElementById("bulkSaleType").value.trim();
+  const product=document.getElementById("bulkProduct").value.trim();
+  for(let i=0;i<urls.length;i++){
+    progress.textContent="Processing "+(i+1)+" of "+urls.length+"...";
+    try{
+      const d=await callGemini(urls[i],saleType,product);
+      d._url=urls[i];
+      bulkData.push(d);
+    }catch(e){
+      bulkData.push({brandName:urls[i],_url:urls[i],_error:e.message,notificationTitle:"Error",notificationBody:e.message,brandColors:{primary:"#ff6b6b",background:"#000"}});
+    }
+    if(i<urls.length-1)await sleep(500);
+  }
+  bulkIdx=0;
+  renderBulkCarousel();
+  renderBulkOverrides();
+  progress.style.display="none";
+  document.getElementById("bulkExportBtn").style.display="inline-flex";
+  document.getElementById("bulkOverrides").style.display="block";
+  btn.disabled=false;btn.textContent="Generate All";
+}
+
+function renderBulkCarousel(){
+  if(!bulkData.length)return;
+  const slides=bulkData.map((d,i)=>`<div class="carousel-slide">${buildCard(d,"bulkCard"+i)}</div>`).join("");
+  document.getElementById("bulkPreview").innerHTML=`<div class="carousel"><div class="carousel-track" id="carouselTrack" style="transform:translateX(-${bulkIdx*390}px)">${slides}</div></div><div class="carousel-nav"><button class="carousel-btn" onclick="carouselPrev()" id="carPrev">&larr;</button><span class="carousel-dots" id="carDots">${bulkIdx+1} / ${bulkData.length}</span><button class="carousel-btn" onclick="carouselNext()" id="carNext">&rarr;</button></div>`;
+  updateCarouselBtns();
+}
+function carouselPrev(){if(bulkIdx>0){bulkIdx--;updateCarousel()}}
+function carouselNext(){if(bulkIdx<bulkData.length-1){bulkIdx++;updateCarousel()}}
+function updateCarousel(){
+  const track=document.getElementById("carouselTrack");
+  if(track)track.style.transform="translateX(-"+(bulkIdx*390)+"px)";
+  const dots=document.getElementById("carDots");
+  if(dots)dots.textContent=(bulkIdx+1)+" / "+bulkData.length;
+  updateCarouselBtns();
+}
+function updateCarouselBtns(){
+  const p=document.getElementById("carPrev"),n=document.getElementById("carNext");
+  if(p)p.disabled=bulkIdx===0;
+  if(n)n.disabled=bulkIdx===bulkData.length-1;
+}
+
+function renderBulkOverrides(){
+  const c=document.getElementById("brandListContainer");
+  c.innerHTML=bulkData.map((d,i)=>{
+    const name=escHtml(d.brandName||d._url);
+    return `<div class="brand-item" id="brandItem${i}"><div class="brand-item-header" onclick="toggleBrandItem(${i})"><span>${name}</span><span class="brand-item-chevron">&#9654;</span></div><div class="brand-item-body"><div class="form-group"><label>Title</label><input type="text" id="bo_title_${i}" value="${escAttr(d.notificationTitle||"")}"></div><div class="form-group"><label>Body</label><input type="text" id="bo_body_${i}" value="${escAttr(d.notificationBody||"")}"></div><div class="form-group"><label>App Icon URL</label><input type="text" id="bo_icon_${i}" value="${escAttr(d.logoUrl||"")}"></div><div class="form-group"><label>Hero Image URL</label><input type="text" id="bo_hero_${i}" value="${escAttr(d.heroImageUrl||"")}"></div><button class="btn btn-secondary" onclick="applyBulkOverride(${i})">Apply to This Brand</button></div></div>`;
+  }).join("");
+}
+
+function toggleBrandItem(i){
+  document.getElementById("brandItem"+i).classList.toggle("expanded");
+}
+
+function applyBulkOverride(i){
+  bulkData[i].notificationTitle=document.getElementById("bo_title_"+i).value;
+  bulkData[i].notificationBody=document.getElementById("bo_body_"+i).value;
+  bulkData[i].logoUrl=document.getElementById("bo_icon_"+i).value;
+  bulkData[i].heroImageUrl=document.getElementById("bo_hero_"+i).value;
+  renderBulkCarousel();
+}
+
+async function exportAll(){
+  for(let i=0;i<bulkData.length;i++){
+    const card=document.getElementById("bulkCard"+i);
+    if(!card)continue;
+    try{
+      const canvas=await html2canvas(card,{useCORS:true,allowTaint:true,scale:2,backgroundColor:null});
+      const link=document.createElement("a");
+      link.download=(bulkData[i].brandName||"brand-"+(i+1))+"-push-mockup.png";
+      link.href=canvas.toDataURL("image/png");
+      link.click();
+      await sleep(300);
+    }catch(e){console.error("Export failed for card "+i,e)}
+  }
+}
+
+document.getElementById("singleUrl").addEventListener("keydown",function(e){if(e.key==="Enter")generateSingle()});
+</script>
+</body>
+</html>
