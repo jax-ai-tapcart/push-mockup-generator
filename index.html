@@ -40,8 +40,8 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .notif-title{font-size:15px;font-weight:600;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
 .notif-time{font-size:12px;color:#8E8E93;text-transform:uppercase;flex-shrink:0;margin-left:8px}
 .notif-body{font-size:14px;font-weight:400;color:#000;line-height:1.35;margin-top:2px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.notif-hero{width:100%;aspect-ratio:4/5;object-fit:cover;display:block}
-.notif-hero-fb{width:100%;aspect-ratio:4/5;display:flex;align-items:center;justify-content:center;font-size:48px;color:rgba(255,255,255,.3)}
+.notif-hero{width:100%;aspect-ratio:5/4;object-fit:cover;display:block}
+.notif-hero-fb{width:100%;aspect-ratio:5/4;display:flex;align-items:center;justify-content:center;font-size:48px;color:rgba(255,255,255,.3)}
 .loading{display:flex;flex-direction:column;align-items:center;gap:16px;padding:60px 0}
 .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -101,9 +101,9 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <div id="singleError"></div>
 <div id="singleConfig" class="config-panel" style="display:none;margin-top:24px"><h3>Manual Overrides</h3>
 <div class="form-group"><label>Title</label><input type="text" id="cfgTitle"></div>
-<div class="form-group"><label>Body</label><input type="text" id="cfgBody"></div>
-<div class="form-group"><label>App Icon URL</label><input type="text" id="cfgIcon"></div>
-<div class="form-group"><label>Hero Image URL</label><input type="text" id="cfgHero"></div>
+<div class="form-group"><label>Body</label><textarea id="cfgBody" style="min-height:70px;resize:vertical"></textarea></div>
+<div class="form-group"><label>App Icon</label><input type="file" id="cfgIconFile" accept="image/*" onchange="handleFileUpload('cfgIconFile','cfgIcon')" style="display:none"><input type="text" id="cfgIcon" placeholder="URL or upload ↑" style="cursor:pointer" onclick="document.getElementById('cfgIconFile').click()"><button class="btn btn-secondary" onclick="document.getElementById('cfgIconFile').click()" style="margin-top:6px;font-size:12px;padding:6px 12px">Choose File</button></div>
+<div class="form-group"><label>Hero Image</label><input type="file" id="cfgHeroFile" accept="image/*" onchange="handleFileUpload('cfgHeroFile','cfgHero')" style="display:none"><input type="text" id="cfgHero" placeholder="URL or upload ↑" style="cursor:pointer" onclick="document.getElementById('cfgHeroFile').click()"><button class="btn btn-secondary" onclick="document.getElementById('cfgHeroFile').click()" style="margin-top:6px;font-size:12px;padding:6px 12px">Choose File</button></div>
 <button class="btn btn-secondary" onclick="applySingleOverrides()">Apply Changes</button></div>
 </div>
 <div class="panel-right"><div id="singlePreview"><div class="placeholder"><div class="placeholder-icon">&#128241;</div><p>Enter a brand URL and click Generate<br>to create a push notification mockup</p></div></div></div>
@@ -139,6 +139,15 @@ function switchTab(t){
   document.getElementById("tab-bulk").classList.toggle("active",t==="bulk");
 }
 function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+function handleFileUpload(fileInputId,textInputId){
+  const file=document.getElementById(fileInputId).files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    document.getElementById(textInputId).value=e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
 function escHtml(s){const d=document.createElement("div");d.textContent=s;return d.innerHTML}
 function escAttr(s){return String(s).replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;")}
 function showError(id,msg){document.getElementById(id).innerHTML=`<div class="error-msg">${escHtml(msg)}</div>`}
@@ -148,7 +157,7 @@ async function callGemini(url,saleType,product){
   let ctx="";
   if(saleType)ctx+="The sale/message type is: "+saleType+". Incorporate this into the notification copy. ";
   if(product)ctx+="The specific product to feature is: "+product+". Reference this product in the copy. ";
-  const prompt="Analyze this brand website: "+url+"\n\n"+ctx+"\nReturn a JSON object with these fields:\n{\n  \"brandName\": \"string - the brand name\",\n  \"logoUrl\": \"string - direct URL to the brand logo (prefer SVG or PNG, look for og:image, favicon, or logo in header). Try the favicon at the domain root.\",\n  \"heroImageUrl\": \"string - a high quality lifestyle or product image URL from this brand website (look for og:image, hero images, featured product photos). Must be a direct image URL.\",\n  \"notificationTitle\": \"string - a compelling push notification title in the brand voice (15-40 chars, can include 1 emoji)\",\n  \"notificationBody\": \"string - the push notification body text in the brand exact voice and tone (40-90 chars, 1-2 lines max). Should sound completely authentic to this brand.\",\n  \"brandColors\": {\n    \"primary\": \"string - hex color\",\n    \"background\": \"string - hex color\"\n  }\n}\n\nRules:\n- The copy MUST sound like this brand wrote it, not generic marketing speak\n- Use their actual tone: luxury brands = aspirational/minimal, streetwear = hype/energetic, wellness = warm/empowering, etc.\n- For image URLs: prefer absolute URLs starting with https://, avoid data URIs\n- Return ONLY the JSON object, no markdown fences, no explanation";
+  const prompt="Analyze this brand website: "+url+"\n\n"+ctx+"\nReturn a JSON object with these fields:\n{\n  \"brandName\": \"string - the brand name\",\n  \"logoUrl\": \"string - the URL to use as the app icon. First try the favicon: construct the URL as https://<domain>/favicon.ico or https://<domain>/favicon.png. If the brand has apple-touch-icon links in their HTML, use that URL instead as it will be higher quality. Return a direct absolute URL.\",\n  \"heroImageUrl\": \"string - find the og:image meta tag from this brand's website (look for <meta property=\\\"og:image\\\"> or <meta name=\\\"twitter:image\\\">). Return the full absolute URL. This is the most important field — always try og:image first.\",\n  \"notificationTitle\": \"string - a compelling push notification title in the brand voice (15-40 chars, can include 1 emoji)\",\n  \"notificationBody\": \"string - the push notification body text in the brand exact voice and tone (40-90 chars, 1-2 lines max). Should sound completely authentic to this brand.\",\n  \"brandColors\": {\n    \"primary\": \"string - hex color\",\n    \"background\": \"string - hex color\"\n  }\n}\n\nRules:\n- The copy MUST sound like this brand wrote it, not generic marketing speak\n- Use their actual tone: luxury brands = aspirational/minimal, streetwear = hype/energetic, wellness = warm/empowering, etc.\n- For image URLs: prefer absolute URLs starting with https://, avoid data URIs\n- Return ONLY the JSON object, no markdown fences, no explanation";
     const apiKey=getApiKey();if(!apiKey){showKeyModal();throw new Error("Please enter your Gemini API key first")}const resp=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(apiKey),{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{temperature:0.7}})});
   if(!resp.ok){const e=await resp.text();throw new Error("Gemini API error ("+resp.status+"): "+e.substring(0,200))}
   const data=await resp.json();
@@ -302,7 +311,7 @@ function renderBulkOverrides(){
   const c=document.getElementById("brandListContainer");
   c.innerHTML=bulkData.map((d,i)=>{
     const name=escHtml(d.brandName||d._url);
-    return `<div class="brand-item" id="brandItem${i}"><div class="brand-item-header" onclick="toggleBrandItem(${i})"><span>${name}</span><span class="brand-item-chevron">&#9654;</span></div><div class="brand-item-body"><div class="form-group"><label>Title</label><input type="text" id="bo_title_${i}" value="${escAttr(d.notificationTitle||"")}"></div><div class="form-group"><label>Body</label><input type="text" id="bo_body_${i}" value="${escAttr(d.notificationBody||"")}"></div><div class="form-group"><label>App Icon URL</label><input type="text" id="bo_icon_${i}" value="${escAttr(d.logoUrl||"")}"></div><div class="form-group"><label>Hero Image URL</label><input type="text" id="bo_hero_${i}" value="${escAttr(d.heroImageUrl||"")}"></div><button class="btn btn-secondary" onclick="applyBulkOverride(${i})">Apply to This Brand</button></div></div>`;
+    return `<div class="brand-item" id="brandItem${i}"><div class="brand-item-header" onclick="toggleBrandItem(${i})"><span>${name}</span><span class="brand-item-chevron">&#9654;</span></div><div class="brand-item-body"><div class="form-group"><label>Title</label><input type="text" id="bo_title_${i}" value="${escAttr(d.notificationTitle||"")}"></div><div class="form-group"><label>Body</label><textarea id="bo_body_${i}" style="min-height:70px;resize:vertical">${escHtml(d.notificationBody||"")}</textarea></div><div class="form-group"><label>App Icon</label><input type="file" id="bo_icon_file_${i}" accept="image/*" onchange="handleFileUpload('bo_icon_file_'+${i},'bo_icon_'+${i})" style="display:none"><input type="text" id="bo_icon_${i}" value="${escAttr(d.logoUrl||"")}" placeholder="URL or upload" style="cursor:pointer" onclick="document.getElementById('bo_icon_file_${i}').click()"><button class="btn btn-secondary" onclick="document.getElementById('bo_icon_file_${i}').click()" style="margin-top:6px;font-size:12px;padding:6px 12px">Choose File</button></div><div class="form-group"><label>Hero Image</label><input type="file" id="bo_hero_file_${i}" accept="image/*" onchange="handleFileUpload('bo_hero_file_'+${i},'bo_hero_'+${i})" style="display:none"><input type="text" id="bo_hero_${i}" value="${escAttr(d.heroImageUrl||"")}" placeholder="URL or upload" style="cursor:pointer" onclick="document.getElementById('bo_hero_file_${i}').click()"><button class="btn btn-secondary" onclick="document.getElementById('bo_hero_file_${i}').click()" style="margin-top:6px;font-size:12px;padding:6px 12px">Choose File</button></div><button class="btn btn-secondary" onclick="applyBulkOverride(${i})">Apply to This Brand</button></div></div>`;
   }).join("");
 }
 
