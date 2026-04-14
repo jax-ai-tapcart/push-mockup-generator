@@ -36,7 +36,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .notif-icon{width:40px;height:40px;border-radius:10px;object-fit:cover;flex-shrink:0}
 .notif-icon-fb{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0}
 .notif-icon-wrap{width:44px;height:44px;border-radius:10px;overflow:hidden;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff}
-.notif-icon-img{width:100%;height:100%;object-fit:cover;display:block}
+.notif-icon-img{width:100%;height:100%;object-fit:contain;display:block;padding:4px;box-sizing:border-box}
 .notif-text{flex:1;margin-left:10px;overflow:hidden}
 .notif-title-row{display:flex;justify-content:space-between;align-items:baseline}
 .notif-title{font-size:15px;font-weight:600;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
@@ -481,7 +481,7 @@ function buildCard(d,id){
   }
   if(d.heroImageUrl){
     var hw="<div class=\"notif-hero-wrap\" style=\"background:"+fb+"\">";
-    var hi="<img class=\"notif-hero-img\" src=\""+escAttr(d.heroImageUrl)+"\" data-fb-color=\""+escAttr(fb)+"\" crossorigin=\"anonymous\" onerror=\"heroFallback(this)\">";
+    var hi="<img class=\"notif-hero-img\" src=\""+escAttr(d.heroImageUrl)+"\" data-fb-color=\""+escAttr(fb)+"\" crossorigin=\"anonymous\" onload=\"initHeroFit(this)\" onerror=\"heroFallback(this)\">";
     heroH=hw+hi+"</div>";
   }else{
     heroH="<div class=\"notif-hero-wrap\" style=\"background:linear-gradient(135deg,"+fb+",#000);display:flex;align-items:center;justify-content:center;font-size:48px;color:rgba(255,255,255,.3)\">&#128247;</div>";
@@ -513,6 +513,29 @@ function iconFallback(img){
   var bg=img.getAttribute("data-brand-color")||"#6C5CE7";
   var wrap=img.parentElement;
   if(wrap){wrap.style.background=bg;wrap.style.display="flex";wrap.style.alignItems="center";wrap.style.justifyContent="center";wrap.style.fontWeight="700";wrap.style.color="#fff";wrap.innerHTML=ini;}
+}
+function initHeroFit(img){
+  var w=img.naturalWidth,h=img.naturalHeight;
+  if(!w||!h)return;
+  var ratio=w/h;
+  if(ratio<0.75){
+    // portrait image — use contain so product is not decapitated
+    img.style.objectFit="contain";
+    img.style.objectPosition="center";
+    var wrap=img.parentElement;
+    if(wrap){
+      var bg=img.getAttribute("data-fb-color")||"#111";
+      wrap.style.background=bg;
+    }
+  } else if(ratio>=0.75&&ratio<1.2){
+    // square-ish — cover but position top to keep subject in frame
+    img.style.objectFit="cover";
+    img.style.objectPosition="center top";
+  } else {
+    // landscape — cover center is fine
+    img.style.objectFit="cover";
+    img.style.objectPosition="center center";
+  }
 }
 function heroFallback(img){
   var bg=img.getAttribute("data-fb-color")||"#6C5CE7";
