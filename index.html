@@ -101,6 +101,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <div id="tab-single" class="tab-content active"><div class="panel"><div class="panel-left">
 <div class="form-group"><label>Brand URL</label><input type="url" id="singleUrl" placeholder="https://example.com"></div>
 <div class="form-row"><div class="form-group"><label>Sale / Message Type (optional)</label><input type="text" id="singleSaleType" placeholder="e.g. flash sale, new collection"></div><div class="form-group"><label>Specific Product (optional)</label><input type="text" id="singleProduct" placeholder="e.g. Summer Dress"></div></div>
+<div class="form-row"><div class="form-group"><label>Logo URL <span style="color:var(--text-muted);font-weight:400">(optional — paste if auto-detect fails)</span></label><input type="url" id="singleLogoUrl" placeholder="https://example.com/logo.png"></div><div class="form-group"><label>Hero Image URL <span style="color:var(--text-muted);font-weight:400">(optional override)</span></label><input type="url" id="singleHeroUrl" placeholder="https://example.com/hero.jpg"></div></div>
 <div class="btn-row"><button class="btn btn-primary" id="singleGenBtn" onclick="generateSingle()">Generate</button><button class="btn btn-secondary" id="singleExportBtn" onclick="exportSingle()" style="display:none">Export PNG</button></div>
 <div id="singleError"></div>
 <div id="singleConfig" class="config-panel" style="display:none;margin-top:24px"><h3>Manual Overrides</h3>
@@ -566,8 +567,12 @@ async function generateSingle(){
   try{
     var saleType=document.getElementById("singleSaleType").value.trim();
     var product=document.getElementById("singleProduct").value.trim();
+    var logoOverride=document.getElementById("singleLogoUrl").value.trim();
+    var heroOverride=document.getElementById("singleHeroUrl").value.trim();
     singleData=await callGemini(url,saleType,product,function(s){updateStatus(s);});
     singleData._url=url;
+    if(logoOverride)singleData.logoUrl=logoOverride;
+    if(heroOverride)singleData.heroImageUrl=heroOverride;
     previewEl.innerHTML=buildCard(singleData,"singleCard");
     document.getElementById("cfgTitle").value=singleData.notificationTitle||"";
     document.getElementById("cfgBody").value=singleData.notificationBody||"";
