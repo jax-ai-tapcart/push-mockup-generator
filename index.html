@@ -239,6 +239,11 @@ async function fetchLogo(domain,brandUrl){
       var hct=hr.headers.get("content-type")||"";
       if(hct.includes("json")){var hj=await hr.json();rawHtml=hj.contents||hj.data||"";}else{rawHtml=await hr.text();}
       if(!rawHtml)continue;
+      // If corsproxy returned markdown, extract cdn/shop/files image URLs via regex
+      if(hct.includes("markdown")||rawHtml.startsWith("---")){
+        var mdImgs=(rawHtml.match(/https?:\/\/[a-zA-Z0-9._-]+\/cdn\/shop\/files\/[^)\s"]+/g)||[]).concat((rawHtml.match(/\/\/[a-zA-Z0-9._-]+\/cdn\/shop\/files\/[^)\s"]+/g)||[]).map(function(u){return"https:"+u;}));
+        for(var mi=0;mi<mdImgs.length;mi++){var mv=await testLogoUrl(mdImgs[mi],40);if(mv)return mdImgs[mi];}
+      }
       var parser=new DOMParser();
       var doc=parser.parseFromString(rawHtml,"text/html");
       for(var si=0;si<logoSelectors.length;si++){
@@ -341,16 +346,15 @@ async function collectCandidateImages(brandUrl){
       if(hct.includes("json")){var hj=await hr.json();rawHtml=hj.contents||hj.data||"";}
       else{rawHtml=await hr.text();}
       if(!rawHtml)continue;
-      // Extract only og:image and twitter:image meta — no img tag scraping
-      var ogMatches=rawHtml.match(/<meta[^>]+(?:property="og:image"|name="twitter:image")[^>]+content="([^"]+)"/gi)||[];
-      ogMatches.forEach(function(m){
-        var match=m.match(/content="([^"]+)"/);
-        if(match&&match[1]){
-          var src=match[1];
-          if(!src.startsWith("http"))try{src=new URL(src,base).href;}catch(e){return;}
-          add(src);
-        }
-      });
+      // Handle corsproxy markdown frontmatter (image: url) and raw HTML meta tags
+      var fmMatch=rawHtml.match(/^image:\s*(https?:\/\/[^\s\n]+)/m);
+      if(fmMatch&&fmMatch[1])add(fmMatch[1]);
+      // Also handle protocol-relative URLs in markdown
+      var prMatches=rawHtml.match(/https:\/\/[a-zA-Z0-9._-]+\/cdn\/shop\/files\/[^)\s"]+/g)||[];
+      prMatches.forEach(function(u){add(u);});
+      // Raw HTML og:image meta tags (allorigins)
+      var ogM=rawHtml.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:og:image|twitter:image)|(?:og:image|twitter:image)[^>]+content=["']([^"']+)/gi)||[];
+      ogM.forEach(function(m){var mc=m.match(/content=["']([^"']+)/);if(mc&&mc[1]){var s=mc[1];if(!s.startsWith("http"))try{s=new URL(s,base).href;}catch(e){return;}add(s);}});
       break;
     }catch(e){continue;}
   }
