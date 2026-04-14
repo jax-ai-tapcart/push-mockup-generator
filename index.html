@@ -379,6 +379,19 @@ async function collectCandidateImages(brandUrl){
     }
   }catch(e){}
 
+  // Source E: microlink screenshot fallback for antibot sites
+  if(candidates.length===0){
+    try{
+      var slr=await fetch("https://api.microlink.io/?url="+encodeURIComponent(base)+"&screenshot=true&meta=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(15000)});
+      if(slr.ok){
+        var sld=await slr.json();
+        if(sld.data&&sld.data.screenshot&&sld.data.screenshot.url){
+          console.log("[Images] microlink screenshot:",sld.data.screenshot.url);
+          add(sld.data.screenshot.url);
+        }
+      }
+    }catch(e){console.log("[Images] screenshot err:",e.message);}
+  }
   console.log("[Images] Collected "+candidates.length+" candidates:",candidates);
   return {candidates:candidates.slice(0,12),brandPalette:brandPalette};
 }
