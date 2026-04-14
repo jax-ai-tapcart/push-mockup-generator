@@ -399,47 +399,24 @@ async function callGemini(url,saleType,product,statusFn){
     p+="Specific product to feature (if provided): "+prodCtx+"\n\n";
     p+="Here are image URLs confirmed to be loadable from this brand website:\n"+numbered+"\n\n";
     p+="Select the single best image for an iOS push notification hero image using these criteria:\n\n";
-    p+="IMAGE SELECTION RULES (read carefully before choosing):
-
-";
-    p+="FIRST CHOICE — lifestyle or model imagery:
-";
-    p+="- A photo of a person wearing, using, or interacting with the brand product
-";
-    p+="- An editorial or aspirational scene that captures the brand aesthetic
-";
-    p+="- Any image where the subject (person or product) sits comfortably centered with visible space around all edges
-";
-    p+="- Landscape or square orientation (width >= height)
-
-";
-    p+="SECOND CHOICE — if no lifestyle image exists:
-";
-    p+="- A product shot where the product is clearly centered with background visible on ALL sides
-";
-    p+="- The product must NOT fill the entire frame top-to-bottom or side-to-side
-";
-    p+="- There must be at least 15% whitespace or background visible above and below the product
-
-";
-    p+="ABSOLUTE REJECTS — never pick these:
-";
-    p+="- Any portrait-orientation image (taller than it is wide) — these WILL be cropped badly
-";
-    p+="- Product shots where the product fills edge-to-edge with no breathing room
-";
-    p+="- Banner images with text overlays, promotional graphics, or sale messaging
-";
-    p+="- Website headers, navigation bars, or UI screenshots
-";
-    p+="- Any image that is clearly a logo or brand mark
-";
-    p+="- Tiny thumbnail images
-
-";
-    p+="The card is exactly 360px wide by 220px tall (landscape). An image that looks great in this container will be wider than it is tall, with the focal subject clearly visible and not cropped by any edge.
-
-";
+    p+="IMAGE SELECTION RULES (read carefully before choosing):\n\n";
+    p+="FIRST CHOICE preference is lifestyle or model imagery:\n";
+    p+="- A photo of a person wearing, using, or interacting with the brand product\n";
+    p+="- An editorial or aspirational scene that captures the brand aesthetic\n";
+    p+="- Any image where the subject sits comfortably centered with visible space around all edges\n";
+    p+="- Landscape or square orientation (width >= height)\n\n";
+    p+="SECOND CHOICE if no lifestyle image exists:\n";
+    p+="- A product shot where the product is clearly centered with background visible on ALL sides\n";
+    p+="- The product must NOT fill the entire frame top-to-bottom or side-to-side\n";
+    p+="- There must be at least 15 percent whitespace or background visible above and below the product\n\n";
+    p+="ABSOLUTE REJECTS never pick these:\n";
+    p+="- Any portrait-orientation image (taller than it is wide) — these will be cropped badly\n";
+    p+="- Product shots where the product fills edge-to-edge with no breathing room\n";
+    p+="- Banner images with text overlays, promotional graphics, or sale messaging\n";
+    p+="- Website headers, navigation bars, or UI screenshots\n";
+    p+="- Any image that is clearly a logo or brand mark\n";
+    p+="- Tiny thumbnail images\n\n";
+    p+="The card is 360px wide by 220px tall. Pick an image where the focal subject is fully visible and not cropped by any edge.\n\n";
     p+="Then write notification copy that is specifically tied to the chosen image:\n";
     p+="- If the image shows a specific product, the copy must name or describe that product\n";
     p+="- If the image is lifestyle, the copy must evoke that feeling or context directly\n";
