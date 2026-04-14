@@ -476,7 +476,7 @@ function buildCard(d,id){
   var iconH,heroH;
   if(d.logoUrl){
     var iw="<div class=\"notif-icon-wrap\" id=\""+escAttr(cardId)+"_iw\" style=\"background:"+fb+"\">";
-    var ii="<img class=\"notif-icon-img\" src=\""+escAttr(d.logoUrl)+"\" data-brand-color=\""+escAttr(fb)+"\" data-ini=\""+escAttr(ini)+"\" crossorigin=\"anonymous\" onload=\"initIconBg(this)\" onerror=\"iconFallback(this)\">";
+    var ii="<img class=\"notif-icon-img\" src=\""+escAttr(d.logoUrl)+"\" data-brand-color=\""+escAttr(fb)+"\" data-ini=\""+escAttr(ini)+"\" onload=\"initIconBg(this)\" onerror=\"iconFallback(this)\">";
     iconH=iw+ii+"</div>";
   }else{
     iconH="<div class=\"notif-icon-wrap\" style=\"background:"+fb+";display:flex;align-items:center;justify-content:center\">"+ini+"</div>";
