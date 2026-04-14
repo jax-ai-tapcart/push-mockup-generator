@@ -165,7 +165,7 @@ function validateImage(url,isLogo){
       clearTimeout(t);
       var w=img.naturalWidth,h=img.naturalHeight;
       if(isLogo){
-        var pass=w>=40&&h>=40;
+        var pass=w>=40||h>=40;
         console.log("[Validate logo]",(pass?"OK":"SKIP "+w+"x"+h),url);
         resolve(pass?url:false);
       }else{
@@ -233,7 +233,7 @@ async function getImageLuminance(url){
 
 async function fetchLogo(domain,brandUrl){
   var proxies=["https://corsproxy.io/?url="+encodeURIComponent(brandUrl),"https://api.allorigins.win/get?url="+encodeURIComponent(brandUrl)];
-  var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=\"/\"] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]"];
+  var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=\"/\"] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]","img[src*=Logo]","picture img","[class*=site-header] img","[class*=main-header] img","[class*=top-bar] img"];
   // Step 1: HTML scrape via proxy (website logo first - more accurate than Clearbit)
   for(var pi=0;pi<proxies.length;pi++){
     try{
