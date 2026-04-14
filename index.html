@@ -164,9 +164,12 @@ function validateImage(url,isLogo){
     img.onload=function(){
       clearTimeout(t);
       var w=img.naturalWidth,h=img.naturalHeight,r=w/h;
-      var minW=isLogo?40:300,minH=isLogo?40:200;
       var minRatio=isLogo?0.4:0.75;var maxRatio=3.0;
-      resolve((w>=minW&&h>=minH&&r>=minRatio&&r<=maxRatio)?url:false);
+      if(isLogo){
+        resolve((w>=40&&h>=40&&r>=minRatio&&r<=maxRatio)?url:false);
+      }else{
+        resolve(((w>=100||h>=100)&&r>=minRatio&&r<=maxRatio)?url:false);
+      }
     };
     img.onerror=function(){clearTimeout(t);resolve(false);};
     img.src=url;
@@ -226,11 +229,8 @@ async function getImageLuminance(url){
 
 async function fetchLogo(domain,brandUrl){
   var proxies=["https://corsproxy.io/?url="+encodeURIComponent(brandUrl),"https://api.allorigins.win/get?url="+encodeURIComponent(brandUrl)];
-  var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=/] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]"];
-  // Step 0: Clearbit — actual brand wordmarks, no crossOrigin needed for display
-  var cbSrc="https://logo.clearbit.com/"+domain;
-  var cb=await testLogoUrl(cbSrc,40);if(cb)return cbSrc;
-  // Step 1: HTML scrape via proxy
+  var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=/] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]","img[src*=Logo]","picture img","[class*=site-header] img","[class*=main-header] img"];
+  // Step 0: HTML scrape via proxy (try real logo from site first)
   for(var pi=0;pi<proxies.length;pi++){
     try{
       var hr=await fetch(proxies[pi],{signal:AbortSignal.timeout(7000)});
@@ -248,6 +248,7 @@ async function fetchLogo(domain,brandUrl){
       var doc=parser.parseFromString(rawHtml,"text/html");
       for(var si=0;si<logoSelectors.length;si++){
         var sel=logoSelectors[si];var els=doc.querySelectorAll(sel);
+        console.log("[Logo] trying selector:",sel,"found:",els.length);
         for(var ei=0;ei<els.length;ei++){
           var el=els[ei];var src=el.getAttribute("src")||el.getAttribute("data-src")||el.getAttribute("href")||"";
           if(!src)continue;
@@ -266,6 +267,9 @@ async function fetchLogo(domain,brandUrl){
       break;
     }catch(e){continue;}
   }
+  // Step 1: Clearbit — fallback brand wordmarks
+  var cbSrc="https://logo.clearbit.com/"+domain;
+  var cb=await testLogoUrl(cbSrc,40);if(cb)return cbSrc;
   // Step 2: microlink logo (skip gstatic/faviconV2 — those are just favicons)
   try{
     var mlr=await fetch("https://api.microlink.io/?url="+encodeURIComponent(brandUrl)+"&palette=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
@@ -332,7 +336,8 @@ async function collectCandidateImages(brandUrl){
     }
   }catch(e){}
 
-  // Source C: og:image meta scrape from homepage via proxy (no img tags — just the og meta)
+
+  // Source C: og:image meta scrape and img tag scraping from homepage via proxy
   var proxies=[
     "https://corsproxy.io/?url="+encodeURIComponent(base),
     "https://api.allorigins.win/get?url="+encodeURIComponent(base)
@@ -355,10 +360,25 @@ async function collectCandidateImages(brandUrl){
       // Raw HTML og:image meta tags (allorigins)
       var ogM=rawHtml.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:og:image|twitter:image)|(?:og:image|twitter:image)[^>]+content=["']([^"']+)/gi)||[];
       ogM.forEach(function(m){var mc=m.match(/content=["']([^"']+)/);if(mc&&mc[1]){var s=mc[1];if(!s.startsWith("http"))try{s=new URL(s,base).href;}catch(e){return;}add(s);}});
+      // img tag scraping — collect general page images
+      var doc=new DOMParser().parseFromString(rawHtml,"text/html");
+      var imgEls=doc.querySelectorAll("img[src], img[data-src]");
+      var imgCount=0;
+      for(var ii=0;ii<imgEls.length&&imgCount<10;ii++){
+        var iel=imgEls[ii];
+        var isrc=iel.getAttribute("src")||iel.getAttribute("data-src")||"";
+        if(!isrc)continue;
+        var isrcLower=isrc.toLowerCase();
+        if(isrcLower.indexOf("logo")!==-1||isrcLower.indexOf("icon")!==-1||isrcLower.indexOf("badge")!==-1||isrcLower.indexOf("sprite")!==-1||isrcLower.indexOf("pixel")!==-1||isrcLower.indexOf("tracking")!==-1||isrcLower.indexOf(".svg")!==-1)continue;
+        var ialt=(iel.getAttribute("alt")||"").toLowerCase();
+        if(ialt.indexOf("logo")!==-1||ialt.indexOf("icon")!==-1)continue;
+        if(!isrc.startsWith("http")){try{isrc=new URL(isrc,base).href;}catch(e){continue;}}
+        add(isrc);
+        imgCount++;
+      }
       break;
     }catch(e){continue;}
   }
-
   // Source D: Shopify collections.json — collection images are usually lifestyle banners not catalog shots
   try{
     var colUrl=base+"/collections.json?limit=6";
@@ -384,7 +404,33 @@ async function collectCandidateImages(brandUrl){
     }
   }catch(e){}
 
-  // Source E: microlink screenshot fallback for antibot sites
+
+  // Source E: Shopify products.json — product hero images
+  try{
+    var prodUrl=base+"/products.json?limit=6";
+    var pproxies=[
+      "https://corsproxy.io/?url="+encodeURIComponent(prodUrl),
+      "https://api.allorigins.win/get?url="+encodeURIComponent(prodUrl)
+    ];
+    for(var ppi=0;ppi<pproxies.length;ppi++){
+      try{
+        var pr=await fetch(pproxies[ppi],{signal:AbortSignal.timeout(7000)});
+        if(!pr.ok)continue;
+        var pj;
+        var pct=pr.headers.get("content-type")||"";
+        if(pct.includes("json")){var praw=await pr.json();pj=praw.contents?JSON.parse(praw.contents):praw;}
+        else{pj=JSON.parse(await pr.text());}
+        if(pj&&Array.isArray(pj.products)){
+          pj.products.slice(0,6).forEach(function(prod){
+            if(prod.images&&prod.images.length>0&&prod.images[0].src)add(prod.images[0].src);
+          });
+          break;
+        }
+      }catch(e){continue;}
+    }
+  }catch(e){}
+
+  // Source F: microlink screenshot fallback for antibot sites
   if(candidates.length===0){
     try{
       var slr=await fetch("https://api.microlink.io/?url="+encodeURIComponent(base)+"&screenshot=true&meta=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(15000)});
