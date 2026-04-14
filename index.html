@@ -164,9 +164,22 @@ function validateImage(url,isLogo){
       clearTimeout(t);
       var w=img.naturalWidth,h=img.naturalHeight,r=w/h;
       var minW=isLogo?40:300,minH=isLogo?40:200;
-      var minRatio=isLogo?0.4:0.75;var maxRatio=isLogo?3.0:3.0;resolve((w>=minW&&h>=minH&&r>=minRatio&&r<=maxRatio)?url:false);
+      var minRatio=isLogo?0.4:0.75;var maxRatio=3.0;
+      resolve((w>=minW&&h>=minH&&r>=minRatio&&r<=maxRatio)?url:false);
     };
     img.onerror=function(){clearTimeout(t);resolve(false);};
+    img.src=url;
+  });
+}
+
+function testLogoUrl(url,minWidth){
+  // No crossOrigin — logos only need to display, not be read by canvas
+  return new Promise(function(resolve){
+    var img=new Image();
+    var min=minWidth||40;
+    var t=setTimeout(function(){console.log("[Logo] TIMEOUT:",url);resolve(false);},6000);
+    img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>=min;console.log("[Logo]",(pass?"OK":"SKIP "+img.naturalWidth+"px"),url);resolve(pass?url:false);};
+    img.onerror=function(){clearTimeout(t);console.log("[Logo] FAIL:",url);resolve(false);};
     img.src=url;
   });
 }
@@ -213,13 +226,10 @@ async function getImageLuminance(url){
 async function fetchLogo(domain,brandUrl){
   var proxies=["https://corsproxy.io/?url="+encodeURIComponent(brandUrl),"https://api.allorigins.win/get?url="+encodeURIComponent(brandUrl)];
   var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=/] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]"];
-  // Step 0: Clearbit logo (most reliable -- returns actual wordmarks)
-  try{
-    var cbSrc="https://logo.clearbit.com/"+domain;
-    var cbPass=await new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>40;console.log("[Logo] clearbit "+(pass?"OK":"SKIP "+img.naturalWidth+"px"));resolve(pass?cbSrc:false);};img.onerror=function(){clearTimeout(t);console.log("[Logo] clearbit load failed");resolve(false);};img.src=cbSrc;});
-    if(cbPass)return cbPass;
-  }catch(e){console.log("[Logo] clearbit err:",e.message);}
-  // Step 1: HTML scrape
+  // Step 0: Clearbit — actual brand wordmarks, no crossOrigin needed for display
+  var cbSrc="https://logo.clearbit.com/"+domain;
+  var cb=await testLogoUrl(cbSrc,40);if(cb)return cbSrc;
+  // Step 1: HTML scrape via proxy
   for(var pi=0;pi<proxies.length;pi++){
     try{
       var hr=await fetch(proxies[pi],{signal:AbortSignal.timeout(7000)});
@@ -236,9 +246,7 @@ async function fetchLogo(domain,brandUrl){
           var el=els[ei];var src=el.getAttribute("src")||el.getAttribute("data-src")||el.getAttribute("href")||"";
           if(!src)continue;
           if(!src.startsWith("http")){try{src=new URL(src,brandUrl).href;}catch(e){continue;}}
-          console.log("[Logo] selector:",sel,"->",src);
-          var result=await validateImage(src,true);
-          if(result)return src;
+          var r=await testLogoUrl(src,40);if(r)return src;
         }
       }
       var linkSels=["link[rel=apple-touch-icon]","link[rel=icon][sizes=\"192x192\"]","link[rel=icon][sizes=\"128x128\"]"];
@@ -247,37 +255,29 @@ async function fetchLogo(domain,brandUrl){
         var lsrc=lel.getAttribute("href")||"";
         if(!lsrc)continue;
         if(!lsrc.startsWith("http")){try{lsrc=new URL(lsrc,brandUrl).href;}catch(e){continue;}}
-        console.log("[Logo] link tag:",linkSels[li],"->",lsrc);
-        var lr=await validateImage(lsrc,true);
-        if(lr)return lsrc;
+        var lr=await testLogoUrl(lsrc,40);if(lr)return lsrc;
       }
       break;
     }catch(e){continue;}
   }
-  // Step 2: microlink logo (only if NOT a gstatic favicon)
+  // Step 2: microlink logo (skip gstatic/faviconV2 — those are just favicons)
   try{
     var mlr=await fetch("https://api.microlink.io/?url="+encodeURIComponent(brandUrl)+"&palette=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
     if(mlr.ok){
       var mld=await mlr.json();
-      if(mld.data&&mld.data.logo&&mld.data.logo.url){
-        var mlUrl=mld.data.logo.url;
-        console.log("[Logo] microlink:",mlUrl);
-        if(mlUrl.indexOf("gstatic.com")===-1&&mlUrl.indexOf("faviconV2")===-1){
-          var mlv=await validateImage(mlUrl,true);
-          if(mlv)return mlUrl;
-        }else{
-          console.log("[Logo] microlink SKIP (gstatic/faviconV2)");
-        }
+      var mlu=mld.data&&mld.data.logo&&mld.data.logo.url;
+      if(mlu&&!mlu.includes("gstatic.com")&&!mlu.includes("faviconV2")){
+        console.log("[Logo] microlink:",mlu);
+        var mlv=await testLogoUrl(mlu,40);if(mlv)return mlu;
       }
     }
-  }catch(e){console.log("[Logo] microlink err:",e.message);}
-  // Step 3: Google favicon direct
-  var gfav=(function(u){return new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] google favicon "+(pass?"OK":"SKIP "+img.naturalWidth+"px"));resolve(pass?u:false);};img.onerror=function(){clearTimeout(t);resolve(false);};img.src=u;});})("https://www.google.com/s2/favicons?domain="+domain+"&sz=128");
-  var gfavResult=await gfav;if(gfavResult)return gfavResult;
+  }catch(e){}
+  // Step 3: Google favicon (16px check, no crossOrigin)
+  var gfSrc="https://www.google.com/s2/favicons?domain="+domain+"&sz=128";
+  var gf=await testLogoUrl(gfSrc,17);if(gf)return gfSrc;
   // Step 4: icon.horse
   var ihSrc="https://icon.horse/icon/"+domain;
-  var ih=await (function(u){return new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] icon.horse "+(pass?"OK":"SKIP "+img.naturalWidth+"px"));resolve(pass?u:false);};img.onerror=function(){clearTimeout(t);resolve(false);};img.src=u;});})(ihSrc);
-  if(ih)return ihSrc;
+  var ih=await testLogoUrl(ihSrc,17);if(ih)return ihSrc;
   return null;
 }
 function hexToLum(hex){
