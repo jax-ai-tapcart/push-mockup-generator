@@ -211,32 +211,20 @@ async function getImageLuminance(url){
 }
 
 async function fetchLogo(domain,brandUrl){
-  // Step 0: microlink logo — most reliable source
+  var proxies=["https://corsproxy.io/?url="+encodeURIComponent(brandUrl),"https://api.allorigins.win/get?url="+encodeURIComponent(brandUrl)];
+  var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=/] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]"];
+  // Step 0: microlink logo
   try{
     var mlr=await fetch("https://api.microlink.io/?url="+encodeURIComponent(brandUrl)+"&palette=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
     if(mlr.ok){
       var mld=await mlr.json();
       if(mld.data&&mld.data.logo&&mld.data.logo.url){
-        console.log("[Logo] Trying microlink logo:",mld.data.logo.url);
-        var mlValid=await validateImage(mld.data.logo.url,true);
-        console.log("[Logo] Microlink result:",mlValid);
-        if(mlValid)return mld.data.logo.url;
+        console.log("[Logo] microlink:",mld.data.logo.url);
+        var mlv=await validateImage(mld.data.logo.url,true);
+        if(mlv)return mld.data.logo.url;
       }
     }
-  }catch(e){console.log("[Logo] Microlink failed:",e.message);}
-async function fetchLogo(domain,brandUrl){
-  var proxies=[
-    "https://corsproxy.io/?url="+encodeURIComponent(brandUrl),
-    "https://api.allorigins.win/get?url="+encodeURIComponent(brandUrl)
-  ];
-  var logoSelectors=[
-    "img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]",
-    "a[class*=logo] img","a[href=/] img","header img","nav img",
-    "[class*=header] img","[class*=navbar] img","[class*=brand] img",
-    "img.header__heading-logo","img.site-header__logo-image",
-    ".header__heading img","[class*=site-logo] img","[class*=header-logo] img",
-    "img[src*=logo]"
-  ];
+  }catch(e){console.log("[Logo] microlink err:",e.message);}
   // Step 1: HTML scrape
   for(var pi=0;pi<proxies.length;pi++){
     try{
@@ -244,88 +232,47 @@ async function fetchLogo(domain,brandUrl){
       if(!hr.ok)continue;
       var rawHtml="";
       var hct=hr.headers.get("content-type")||"";
-      if(hct.includes("json")){var hj=await hr.json();rawHtml=hj.contents||hj.data||"";}
-      else{rawHtml=await hr.text();}
+      if(hct.includes("json")){var hj=await hr.json();rawHtml=hj.contents||hj.data||"";}else{rawHtml=await hr.text();}
       if(!rawHtml)continue;
       var parser=new DOMParser();
       var doc=parser.parseFromString(rawHtml,"text/html");
       for(var si=0;si<logoSelectors.length;si++){
-        var sel=logoSelectors[si];
-        var els=doc.querySelectorAll(sel);
+        var sel=logoSelectors[si];var els=doc.querySelectorAll(sel);
         for(var ei=0;ei<els.length;ei++){
-          var el=els[ei];
-          var src=el.getAttribute("src")||el.getAttribute("data-src")||el.getAttribute("href")||"";
+          var el=els[ei];var src=el.getAttribute("src")||el.getAttribute("data-src")||el.getAttribute("href")||"";
           if(!src)continue;
           if(!src.startsWith("http")){try{src=new URL(src,brandUrl).href;}catch(e){continue;}}
-          console.log("[Logo] Trying selector:",sel,"->",src);
+          console.log("[Logo] selector:",sel,"->",src);
           var result=await validateImage(src,true);
-          console.log("[Logo] Validation result:",result);
           if(result)return src;
         }
       }
-      // apple-touch-icon from link tags
-      var linkSels=[
-        "link[rel=apple-touch-icon]",
-        "link[rel=icon][sizes=\"192x192\"]",
-        "link[rel=icon][sizes=\"128x128\"]"
-      ];
+      var linkSels=["link[rel=apple-touch-icon]","link[rel=icon][sizes=\"192x192\"]","link[rel=icon][sizes=\"128x128\"]"];
       for(var li=0;li<linkSels.length;li++){
-        var lel=doc.querySelector(linkSels[li]);
-        if(!lel)continue;
+        var lel=doc.querySelector(linkSels[li]);if(!lel)continue;
         var lsrc=lel.getAttribute("href")||"";
         if(!lsrc)continue;
         if(!lsrc.startsWith("http")){try{lsrc=new URL(lsrc,brandUrl).href;}catch(e){continue;}}
-        console.log("[Logo] Trying link tag:",linkSels[li],"->",lsrc);
+        console.log("[Logo] link tag:",linkSels[li],"->",lsrc);
         var lr=await validateImage(lsrc,true);
-        console.log("[Logo] Validation result:",lr);
         if(lr)return lsrc;
       }
       break;
     }catch(e){continue;}
   }
   // Step 2: Google favicon
-  var gfav=(function(u){
-    return new Promise(function(resolve){
-      var img=new Image();
-      img.crossOrigin="anonymous";
-      var t=setTimeout(function(){console.log("[Logo] TIMEOUT: google favicon");resolve(false);},5000);
-      img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] Google favicon: "+(pass?"OK":"SKIP "+img.naturalWidth+"px"));resolve(pass?u:false);};
-      img.onerror=function(){clearTimeout(t);console.log("[Logo] Google favicon: ERROR");resolve(false);};
-      img.src=u;
-    });
-  })("https://www.google.com/s2/favicons?domain="+domain+"&sz=128");
-  var gfavResult=await gfav;
-  if(gfavResult)return gfavResult;
+  var gfav=(function(u){return new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] google favicon "+(pass?"OK":"SKIP "+img.naturalWidth+"px"));resolve(pass?u:false);};img.onerror=function(){clearTimeout(t);resolve(false);};img.src=u;});})("https://www.google.com/s2/favicons?domain="+domain+"&sz=128");
+  var gfavResult=await gfav;if(gfavResult)return gfavResult;
   // Step 3: Clearbit
   var cbSrc="https://logo.clearbit.com/"+domain;
-  var cb=await (function(u){
-    return new Promise(function(resolve){
-      var img=new Image();
-      img.crossOrigin="anonymous";
-      var t=setTimeout(function(){console.log("[Logo] TIMEOUT: clearbit");resolve(false);},5000);
-      img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] Clearbit: "+(pass?"OK":"SKIP "+img.naturalWidth+"px"));resolve(pass?u:false);};
-      img.onerror=function(){clearTimeout(t);console.log("[Logo] Clearbit: ERROR");resolve(false);};
-      img.src=u;
-    });
-  })(cbSrc);
-  if(cb)return cb;
+  var cb=await (function(u){return new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] clearbit "+(pass?"OK":"SKIP"+img.naturalWidth+"px"));resolve(pass?u:false);};img.onerror=function(){clearTimeout(t);resolve(false);};img.src=u;});})(cbSrc);
+  if(cb)return cbSrc;
   // Step 4: icon.horse
   var ihSrc="https://icon.horse/icon/"+domain;
-  var ih=await (function(u){
-    return new Promise(function(resolve){
-      var img=new Image();
-      img.crossOrigin="anonymous";
-      var t=setTimeout(function(){console.log("[Logo] TIMEOUT: icon.horse");resolve(false);},5000);
-      img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] icon.horse: "+(pass?"OK":"SKIP "+img.naturalWidth+"px"));resolve(pass?u:false);};
-      img.onerror=function(){clearTimeout(t);console.log("[Logo] icon.horse: ERROR");resolve(false);};
-      img.src=u;
-    });
-  })(ihSrc);
-  if(ih)return ih;
-  console.log("[Logo] all sources failed, using letter fallback");
+  var ih=await (function(u){return new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] icon.horse "+(pass?"OK":"SKIP"+img.naturalWidth+"px"));resolve(pass?u:false);};img.onerror=function(){clearTimeout(t);resolve(false);};img.src=u;});})(ihSrc);
+  if(ih)return ihSrc;
   return null;
 }
-
 function hexToLum(hex){
   var h=hex.replace("#","");
   if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
