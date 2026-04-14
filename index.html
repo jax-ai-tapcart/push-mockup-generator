@@ -233,7 +233,7 @@ async function getImageLuminance(url){
 
 async function fetchLogo(domain,brandUrl){
   var proxies=["https://corsproxy.io/?url="+encodeURIComponent(brandUrl),"https://api.allorigins.win/get?url="+encodeURIComponent(brandUrl)];
-  var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=\"/\"] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]","img[src*=Logo]","picture img","[class*=site-header] img","[class*=main-header] img","[class*=top-bar] img"];
+  var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=\"/\"] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]","img[src*=Logo]","[class*=site-header] img","[class*=main-header] img","[class*=top-bar] img"];
   // Step 1: HTML scrape via proxy (website logo first - more accurate than Clearbit)
   for(var pi=0;pi<proxies.length;pi++){
     try{
@@ -301,6 +301,10 @@ async function fetchLogo(domain,brandUrl){
         for(var hii=0;hii<hImgs.length;hii++){
           var hsrc=hImgs[hii].getAttribute("src")||hImgs[hii].getAttribute("data-src")||"";
           if(!hsrc||/\.svg/i.test(hsrc))continue;
+          var hwN=parseInt(hImgs[hii].getAttribute("width")||"9999")||9999;
+          var hhN=parseInt(hImgs[hii].getAttribute("height")||"9999")||9999;
+          var hasLogoInSrc=/logo|brand|wordmark/i.test(hsrc);
+          if(!hasLogoInSrc&&hwN>200&&hhN>200)continue;
           if(!hsrc.startsWith("http")){try{hsrc=new URL(hsrc,brandUrl).href;}catch(e){continue;}}
           console.log("[Logo] Homepage link img:",hsrc);
           var hr2=await testLogoUrl(hsrc,40);if(hr2)return hsrc;
@@ -659,27 +663,9 @@ function iconFallback(img){
   if(wrap){wrap.style.background=bg;wrap.style.display="flex";wrap.style.alignItems="center";wrap.style.justifyContent="center";wrap.style.fontWeight="700";wrap.style.color="#fff";wrap.innerHTML=ini;}
 }
 function initHeroFit(img){
-  var w=img.naturalWidth,h=img.naturalHeight;
-  if(!w||!h)return;
-  var ratio=w/h;
-  if(ratio<0.75){
-    // portrait image — use contain so product is not decapitated
-    img.style.objectFit="contain";
-    img.style.objectPosition="center";
-    var wrap=img.parentElement;
-    if(wrap){
-      var bg=img.getAttribute("data-fb-color")||"#111";
-      wrap.style.background=bg;
-    }
-  } else if(ratio>=0.75&&ratio<1.2){
-    // square-ish — cover but position top to keep subject in frame
-    img.style.objectFit="cover";
-    img.style.objectPosition="center top";
-  } else {
-    // landscape — cover center is fine
-    img.style.objectFit="cover";
-    img.style.objectPosition="center center";
-  }
+  // Always cover — hero images must be full-bleed, no pillarboxing ever
+  img.style.objectFit="cover";
+  img.style.objectPosition="center top";
 }
 function heroFallback(img){
   var bg=img.getAttribute("data-fb-color")||"#6C5CE7";
