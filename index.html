@@ -334,39 +334,85 @@ function pickDarkestColor(palette,fallback){
 }
 async function collectCandidateImages(brandUrl){
   var candidates=[],seen=new Set(),brandPalette=null;
+  var base=brandUrl.replace(/\/+$/,"");
   function add(u){if(u&&typeof u==="string"&&u.startsWith("http")&&!seen.has(u)){seen.add(u);candidates.push(u);}}
-  // Source A — microlink
+
+  // Source A: microlink on homepage — returns og:image / editorial featured image
   try{
-    var ml=await fetch("https://api.microlink.io/?url="+encodeURIComponent(brandUrl)+"&palette=true&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
+    var ml=await fetch("https://api.microlink.io/?url="+encodeURIComponent(base)+"&palette=true&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
     if(ml.ok){
       var mld=await ml.json();
       if(mld.data){
         if(mld.data.image&&mld.data.image.url)add(mld.data.image.url);
-        if(mld.data.colors&&mld.data.colors.background)brandPalette=mld.data.colors;
+        if(mld.data.colors)brandPalette=mld.data.colors;
       }
     }
   }catch(e){}
-  // Source B — Shopify products.json
-  var prodUrl=brandUrl.replace(/\/+$/,"")+ "/products.json?limit=6";
+
+  // Source B: microlink on /collections page — editorial lifestyle banners
+  try{
+    var ml2=await fetch("https://api.microlink.io/?url="+encodeURIComponent(base+"/collections")+"&palette=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
+    if(ml2.ok){
+      var ml2d=await ml2.json();
+      if(ml2d.data&&ml2d.data.image&&ml2d.data.image.url)add(ml2d.data.image.url);
+    }
+  }catch(e){}
+
+  // Source C: og:image meta scrape from homepage via proxy (no img tags — just the og meta)
   var proxies=[
-    "https://corsproxy.io/?url="+encodeURIComponent(prodUrl),
-    "https://api.allorigins.win/get?url="+encodeURIComponent(prodUrl)
+    "https://corsproxy.io/?url="+encodeURIComponent(base),
+    "https://api.allorigins.win/get?url="+encodeURIComponent(base)
   ];
   for(var pi=0;pi<proxies.length;pi++){
     try{
-      var pr=await fetch(proxies[pi],{signal:AbortSignal.timeout(7000)});
-      if(!pr.ok)continue;
-      var pj;
-      var ct=pr.headers.get("content-type")||"";
-      if(ct.includes("json")){var raw=await pr.json();pj=raw.contents?JSON.parse(raw.contents):raw;}
-      else{pj=JSON.parse(await pr.text());}
-      if(pj&&Array.isArray(pj.products)){
-        pj.products.slice(0,6).forEach(function(p){if(p.images&&p.images[0]&&p.images[0].src)add(p.images[0].src);});
-        break;
-      }
+      var hr=await fetch(proxies[pi],{signal:AbortSignal.timeout(7000)});
+      if(!hr.ok)continue;
+      var rawHtml="";
+      var hct=hr.headers.get("content-type")||"";
+      if(hct.includes("json")){var hj=await hr.json();rawHtml=hj.contents||hj.data||"";}
+      else{rawHtml=await hr.text();}
+      if(!rawHtml)continue;
+      // Extract only og:image and twitter:image meta — no img tag scraping
+      var ogMatches=rawHtml.match(/<meta[^>]+(?:property="og:image"|name="twitter:image")[^>]+content="([^"]+)"/gi)||[];
+      ogMatches.forEach(function(m){
+        var match=m.match(/content="([^"]+)"/);
+        if(match&&match[1]){
+          var src=match[1];
+          if(!src.startsWith("http"))try{src=new URL(src,base).href;}catch(e){return;}
+          add(src);
+        }
+      });
+      break;
     }catch(e){continue;}
   }
-  return {candidates:candidates.slice(0,10),brandPalette:brandPalette};
+
+  // Source D: Shopify collections.json — collection images are usually lifestyle banners not catalog shots
+  try{
+    var colUrl=base+"/collections.json?limit=6";
+    var cproxies=[
+      "https://corsproxy.io/?url="+encodeURIComponent(colUrl),
+      "https://api.allorigins.win/get?url="+encodeURIComponent(colUrl)
+    ];
+    for(var ci=0;ci<cproxies.length;ci++){
+      try{
+        var cr=await fetch(cproxies[ci],{signal:AbortSignal.timeout(7000)});
+        if(!cr.ok)continue;
+        var cj;
+        var cct=cr.headers.get("content-type")||"";
+        if(cct.includes("json")){var craw=await cr.json();cj=craw.contents?JSON.parse(craw.contents):craw;}
+        else{cj=JSON.parse(await cr.text());}
+        if(cj&&Array.isArray(cj.collections)){
+          cj.collections.slice(0,6).forEach(function(col){
+            if(col.image&&col.image.src)add(col.image.src);
+          });
+          break;
+        }
+      }catch(e){continue;}
+    }
+  }catch(e){}
+
+  console.log("[Images] Collected "+candidates.length+" candidates:",candidates);
+  return {candidates:candidates.slice(0,12),brandPalette:brandPalette};
 }
 async function callGemini(url,saleType,product,statusFn){
   var domain=new URL(url).hostname;
@@ -389,24 +435,19 @@ async function callGemini(url,saleType,product,statusFn){
     p+="Specific product to feature (if provided): "+prodCtx+"\n\n";
     p+="Here are image URLs confirmed to be loadable from this brand website:\n"+numbered+"\n\n";
     p+="Select the single best image for an iOS push notification hero image using these criteria:\n\n";
-    p+="IMAGE SELECTION RULES (read carefully before choosing):\n\n";
-    p+="FIRST CHOICE preference is lifestyle or model imagery:\n";
-    p+="- A photo of a person wearing, using, or interacting with the brand product\n";
-    p+="- An editorial or aspirational scene that captures the brand aesthetic\n";
-    p+="- Any image where the subject sits comfortably centered with visible space around all edges\n";
-    p+="- Landscape or square orientation (width >= height)\n\n";
-    p+="SECOND CHOICE if no lifestyle image exists:\n";
-    p+="- A product shot where the product is clearly centered with background visible on ALL sides\n";
-    p+="- The product must NOT fill the entire frame top-to-bottom or side-to-side\n";
-    p+="- There must be at least 15 percent whitespace or background visible above and below the product\n\n";
-    p+="ABSOLUTE REJECTS never pick these:\n";
-    p+="- Any portrait-orientation image (taller than it is wide) — these will be cropped badly\n";
-    p+="- Product shots where the product fills edge-to-edge with no breathing room\n";
-    p+="- Banner images with text overlays, promotional graphics, or sale messaging\n";
-    p+="- Website headers, navigation bars, or UI screenshots\n";
-    p+="- Any image that is clearly a logo or brand mark\n";
-    p+="- Tiny thumbnail images\n\n";
-    p+="The card is 360px wide by 220px tall. Pick an image where the focal subject is fully visible and not cropped by any edge.\n\n";
+    p+="WHAT MAKES A GREAT PUSH NOTIFICATION HERO IMAGE:\n\n";
+    p+="IDEAL pick in this priority order:\n";
+    p+="1. Model or person wearing or using the product. Medium shot, waist up or closer. Subject centered. Emotional or aspirational. This is the gold standard.\n";
+    p+="2. Editorial lifestyle scene: product in an atmospheric setting. Not a plain white studio background.\n";
+    p+="3. Close-up of product in use: beauty product on skin, hand holding item, etc.\n";
+    p+="4. Collection hero or campaign banner: wide editorial image for a collection.\n\n";
+    p+="DO NOT PICK:\n";
+    p+="- Product on plain white or solid color background (catalog shot, looks bad in push notifications).\n";
+    p+="- Portrait-orientation image (taller than wide): will be cropped badly.\n";
+    p+="- Images with text overlays, sale banners, or promotional graphics.\n";
+    p+="- Logo images, icons, or brand marks.\n";
+    p+="- Anything resembling an e-commerce product listing photo.\n\n";
+    p+="The card is 320x220px landscape. Choose the most editorial, lifestyle, or aspirational image available.\n\n";
     p+="Then write notification copy that is specifically tied to the chosen image:\n";
     p+="- If the image shows a specific product, the copy must name or describe that product\n";
     p+="- If the image is lifestyle, the copy must evoke that feeling or context directly\n";
