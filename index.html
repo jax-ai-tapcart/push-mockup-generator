@@ -35,17 +35,17 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .notif-header{padding:14px 14px 10px 14px;display:flex;flex-direction:row;align-items:flex-start}
 .notif-icon{width:40px;height:40px;border-radius:10px;object-fit:cover;flex-shrink:0}
 .notif-icon-fb{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0}
-.notif-icon-wrap{width:44px;height:44px;border-radius:10px;overflow:hidden;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff}
+.notif-icon-wrap{width:44px;height:44px;border-radius:10px;overflow:hidden;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;color:#fff;background:#fff;border:1px solid #e0e0e0}
 .notif-icon-img{width:100%;height:100%;object-fit:contain;display:block;padding:4px;box-sizing:border-box}
 .notif-text{flex:1;margin-left:10px;overflow:hidden}
 .notif-title-row{display:flex;justify-content:space-between;align-items:baseline}
 .notif-title{font-size:15px;font-weight:600;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:200px}
 .notif-time{font-size:12px;color:#8E8E93;text-transform:uppercase;flex-shrink:0;margin-left:8px}
 .notif-body{font-size:14px;font-weight:400;color:#000;line-height:1.35;margin-top:2px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.notif-hero-wrap{width:100%;height:220px;overflow:hidden;position:relative;flex-shrink:0}
+.notif-hero-wrap{width:100%;height:260px;overflow:hidden;position:relative;flex-shrink:0}
 .notif-hero-img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
-.notif-hero{width:100%;height:220px;object-fit:cover;display:block}
-.notif-hero-fb{width:100%;height:220px;display:flex;align-items:center;justify-content:center;font-size:48px;color:rgba(255,255,255,.3)}
+.notif-hero{width:100%;height:260px;object-fit:cover;display:block}
+.notif-hero-fb{width:100%;height:260px;display:flex;align-items:center;justify-content:center;font-size:48px;color:rgba(255,255,255,.3)}
 .loading{display:flex;flex-direction:column;align-items:center;gap:16px;padding:60px 0}
 .spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -475,7 +475,7 @@ function buildCard(d,id){
   var ini=(d.brandName||"?")[0].toUpperCase();
   var iconH,heroH;
   if(d.logoUrl){
-    var iw="<div class=\"notif-icon-wrap\" id=\""+escAttr(cardId)+"_iw\" style=\"background:"+fb+"\">";
+    var iw="<div class=\"notif-icon-wrap\" id=\""+escAttr(cardId)+"_iw\" style=\"background:#fff;border:1px solid #e0e0e0\">";
     var ii="<img class=\"notif-icon-img\" src=\""+escAttr(d.logoUrl)+"\" data-brand-color=\""+escAttr(fb)+"\" data-ini=\""+escAttr(ini)+"\" onload=\"initIconBg(this)\" onerror=\"iconFallback(this)\">";
     iconH=iw+ii+"</div>";
   }else{
@@ -500,12 +500,7 @@ function buildCard(d,id){
 }
 
 function initIconBg(img){
-  var brandColor=img.getAttribute("data-brand-color")||"#222";
-  var wrap=img.parentElement;
-  if(!wrap)return;
-  // Always use brand color as bg, make logo appear white/light via CSS filter
-  wrap.style.background=brandColor;
-  img.style.filter="brightness(0) invert(1)";
+  // Logo displays as-is on white bg — no filter, no color override
 }
 function iconFallback(img){
   var ini=img.getAttribute("data-ini")||"?";
