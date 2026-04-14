@@ -423,7 +423,7 @@ async function callGemini(url,saleType,product,statusFn){
     p+="- Body: 40-90 characters, brand voice, must reference what is visible in the chosen image\n\n";
     if(extra)p+=extra+"\n\n";
     p+="Respond ONLY with valid JSON, no markdown, no explanation:\n";
-    p+="Also infer the brand name and suggest two colors: background_color (overall brand color, any shade) and icon_background_color (the darkest, most recognizable brand color — this will be used as the background for the app icon, with the logo shown in white on top of it).\n\n";
+    p+="Also infer the brand name and suggest two colors: background_color (overall brand color, any shade) and icon_background_color (the most prominent brand color that is dark enough to show a white logo clearly on top. Pick the signature/hero brand color, not necessarily the darkest shade — e.g. a brand teal is better than a forest green if teal is what defines the brand — this will be used as the background for the app icon, with the logo shown in white on top of it).\n\n";
     p+="{\n  \"brand_name\": \"\",\n  \"chosen_image_url\": \"\",\n  \"image_description\": \"\",\n  \"title\": \"\",\n  \"body\": \"\",\n  \"background_color\": \"\",\n  \"icon_background_color\": \"\"\n}";
     var resp=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(apiKey),{
       method:"POST",
@@ -465,7 +465,7 @@ async function callGemini(url,saleType,product,statusFn){
     notificationBody:result.body||"",
     heroImageUrl:result.chosen_image_url||"",
     logoUrl:logoUrl||"",
-    brandColors:{primary:pickDarkestColor(brandPalette,result.icon_background_color||result.background_color),background:result.background_color||"#000"}
+    brandColors:{primary:result.icon_background_color||result.background_color||"#222",background:result.background_color||"#000"}
   };
 }
 
