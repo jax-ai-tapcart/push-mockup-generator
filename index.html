@@ -164,7 +164,7 @@ function validateImage(url,isLogo){
       clearTimeout(t);
       var w=img.naturalWidth,h=img.naturalHeight,r=w/h;
       var minW=isLogo?40:300,minH=isLogo?40:200;
-      var minRatio=isLogo?0.4:1.2;var maxRatio=isLogo?3.0:3.0;resolve((w>=minW&&h>=minH&&r>=minRatio&&r<=maxRatio)?url:false);
+      var minRatio=isLogo?0.4:0.75;var maxRatio=isLogo?3.0:3.0;resolve((w>=minW&&h>=minH&&r>=minRatio&&r<=maxRatio)?url:false);
     };
     img.onerror=function(){clearTimeout(t);resolve(false);};
     img.src=url;
