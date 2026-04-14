@@ -213,18 +213,12 @@ async function getImageLuminance(url){
 async function fetchLogo(domain,brandUrl){
   var proxies=["https://corsproxy.io/?url="+encodeURIComponent(brandUrl),"https://api.allorigins.win/get?url="+encodeURIComponent(brandUrl)];
   var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=/] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]"];
-  // Step 0: microlink logo
+  // Step 0: Clearbit logo (most reliable -- returns actual wordmarks)
   try{
-    var mlr=await fetch("https://api.microlink.io/?url="+encodeURIComponent(brandUrl)+"&palette=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
-    if(mlr.ok){
-      var mld=await mlr.json();
-      if(mld.data&&mld.data.logo&&mld.data.logo.url){
-        console.log("[Logo] microlink:",mld.data.logo.url);
-        var mlv=await validateImage(mld.data.logo.url,true);
-        if(mlv)return mld.data.logo.url;
-      }
-    }
-  }catch(e){console.log("[Logo] microlink err:",e.message);}
+    var cbSrc="https://logo.clearbit.com/"+domain;
+    var cbPass=await new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>40;console.log("[Logo] clearbit "+(pass?"OK":"SKIP "+img.naturalWidth+"px"));resolve(pass?cbSrc:false);};img.onerror=function(){clearTimeout(t);console.log("[Logo] clearbit load failed");resolve(false);};img.src=cbSrc;});
+    if(cbPass)return cbPass;
+  }catch(e){console.log("[Logo] clearbit err:",e.message);}
   // Step 1: HTML scrape
   for(var pi=0;pi<proxies.length;pi++){
     try{
@@ -260,16 +254,29 @@ async function fetchLogo(domain,brandUrl){
       break;
     }catch(e){continue;}
   }
-  // Step 2: Google favicon
+  // Step 2: microlink logo (only if NOT a gstatic favicon)
+  try{
+    var mlr=await fetch("https://api.microlink.io/?url="+encodeURIComponent(brandUrl)+"&palette=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
+    if(mlr.ok){
+      var mld=await mlr.json();
+      if(mld.data&&mld.data.logo&&mld.data.logo.url){
+        var mlUrl=mld.data.logo.url;
+        console.log("[Logo] microlink:",mlUrl);
+        if(mlUrl.indexOf("gstatic.com")===-1&&mlUrl.indexOf("faviconV2")===-1){
+          var mlv=await validateImage(mlUrl,true);
+          if(mlv)return mlUrl;
+        }else{
+          console.log("[Logo] microlink SKIP (gstatic/faviconV2)");
+        }
+      }
+    }
+  }catch(e){console.log("[Logo] microlink err:",e.message);}
+  // Step 3: Google favicon direct
   var gfav=(function(u){return new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] google favicon "+(pass?"OK":"SKIP "+img.naturalWidth+"px"));resolve(pass?u:false);};img.onerror=function(){clearTimeout(t);resolve(false);};img.src=u;});})("https://www.google.com/s2/favicons?domain="+domain+"&sz=128");
   var gfavResult=await gfav;if(gfavResult)return gfavResult;
-  // Step 3: Clearbit
-  var cbSrc="https://logo.clearbit.com/"+domain;
-  var cb=await (function(u){return new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] clearbit "+(pass?"OK":"SKIP"+img.naturalWidth+"px"));resolve(pass?u:false);};img.onerror=function(){clearTimeout(t);resolve(false);};img.src=u;});})(cbSrc);
-  if(cb)return cbSrc;
   // Step 4: icon.horse
   var ihSrc="https://icon.horse/icon/"+domain;
-  var ih=await (function(u){return new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] icon.horse "+(pass?"OK":"SKIP"+img.naturalWidth+"px"));resolve(pass?u:false);};img.onerror=function(){clearTimeout(t);resolve(false);};img.src=u;});})(ihSrc);
+  var ih=await (function(u){return new Promise(function(resolve){var img=new Image();img.crossOrigin="anonymous";var t=setTimeout(function(){resolve(false);},5000);img.onload=function(){clearTimeout(t);var pass=img.naturalWidth>16;console.log("[Logo] icon.horse "+(pass?"OK":"SKIP "+img.naturalWidth+"px"));resolve(pass?u:false);};img.onerror=function(){clearTimeout(t);resolve(false);};img.src=u;});})(ihSrc);
   if(ih)return ihSrc;
   return null;
 }
@@ -289,9 +296,9 @@ function pickDarkestColor(palette,fallback){
   });
   if(!candidates.length)return fb;
   candidates.sort(function(a,b){return hexToLum(a)-hexToLum(b);});
-  // pick darkest that is actually dark (lum < 100) else fallback to Gemini suggestion
+  // pick darkest that is actually dark (lum < 80) else fallback to Gemini suggestion
   var darkest=candidates[0];
-  return hexToLum(darkest)<120?darkest:fb;
+  return hexToLum(darkest)<80?darkest:fb;
 }
 async function collectCandidateImages(brandUrl){
   var candidates=[],seen=new Set(),brandPalette=null;
