@@ -164,7 +164,7 @@ function validateImage(url,isLogo){
       clearTimeout(t);
       var w=img.naturalWidth,h=img.naturalHeight,r=w/h;
       var minW=isLogo?40:300,minH=isLogo?40:200;
-      resolve((w>=minW&&h>=minH&&r>=0.4&&r<=3.0)?url:false);
+      var minRatio=isLogo?0.4:1.2;var maxRatio=isLogo?3.0:3.0;resolve((w>=minW&&h>=minH&&r>=minRatio&&r<=maxRatio)?url:false);
     };
     img.onerror=function(){clearTimeout(t);resolve(false);};
     img.src=url;
@@ -399,30 +399,56 @@ async function callGemini(url,saleType,product,statusFn){
     p+="Specific product to feature (if provided): "+prodCtx+"\n\n";
     p+="Here are image URLs confirmed to be loadable from this brand website:\n"+numbered+"\n\n";
     p+="Select the single best image for an iOS push notification hero image using these criteria:\n\n";
-    p+="STRONGLY PREFER:\n";
-    p+="- Images where the main subject occupies roughly the center 40-60% of the frame with meaningful background space visible around all edges\n";
-    p+="- Product shots where the product is centered with clean background around it on all sides\n";
-    p+="- Lifestyle photos where the subject is not tightly cropped and you can see environment or context around them\n";
-    p+="- Square or landscape images where the focal point sits comfortably in the middle third\n";
-    p+="- Images where cropping any edge slightly would not cut into the main subject\n";
-    p+="- Landscape orientation or square images\n\n";
-    p+="REJECT:\n";
-    p+="- Images where the subject fills the entire frame edge to edge with no breathing room\n";
-    p+="- Wide horizontal banners where content is stretched across the full width\n";
-    p+="- Tightly cropped faces or single product details\n";
-    p+="- Images with large text overlays or graphic treatments\n";
-    p+="- Product images on plain white backgrounds with the product filling most of the frame\n";
-    p+="- Any image that appears to be a website header, navigation element, or promotional banner\n\n";
-    p+="The goal is an image that looks intentional and premium at 360px wide by 220px tall, with the subject clearly readable at that size without feeling cramped.\n\n";
+    p+="IMAGE SELECTION RULES (read carefully before choosing):
+
+";
+    p+="FIRST CHOICE — lifestyle or model imagery:
+";
+    p+="- A photo of a person wearing, using, or interacting with the brand product
+";
+    p+="- An editorial or aspirational scene that captures the brand aesthetic
+";
+    p+="- Any image where the subject (person or product) sits comfortably centered with visible space around all edges
+";
+    p+="- Landscape or square orientation (width >= height)
+
+";
+    p+="SECOND CHOICE — if no lifestyle image exists:
+";
+    p+="- A product shot where the product is clearly centered with background visible on ALL sides
+";
+    p+="- The product must NOT fill the entire frame top-to-bottom or side-to-side
+";
+    p+="- There must be at least 15% whitespace or background visible above and below the product
+
+";
+    p+="ABSOLUTE REJECTS — never pick these:
+";
+    p+="- Any portrait-orientation image (taller than it is wide) — these WILL be cropped badly
+";
+    p+="- Product shots where the product fills edge-to-edge with no breathing room
+";
+    p+="- Banner images with text overlays, promotional graphics, or sale messaging
+";
+    p+="- Website headers, navigation bars, or UI screenshots
+";
+    p+="- Any image that is clearly a logo or brand mark
+";
+    p+="- Tiny thumbnail images
+
+";
+    p+="The card is exactly 360px wide by 220px tall (landscape). An image that looks great in this container will be wider than it is tall, with the focal subject clearly visible and not cropped by any edge.
+
+";
     p+="Then write notification copy that is specifically tied to the chosen image:\n";
     p+="- If the image shows a specific product, the copy must name or describe that product\n";
     p+="- If the image is lifestyle, the copy must evoke that feeling or context directly\n";
     p+="- Title: 15-40 characters, 1 emoji allowed, punchy and brand-appropriate\n";
     p+="- Body: 40-90 characters, brand voice, must reference what is visible in the chosen image\n\n";
-    p+="Also infer the brand name from the URL and suggest a background color (hex) that feels on-brand.\n\n";
     if(extra)p+=extra+"\n\n";
     p+="Respond ONLY with valid JSON, no markdown, no explanation:\n";
-    p+="{\n  \"brand_name\": \"\",\n  \"chosen_image_url\": \"\",\n  \"image_description\": \"\",\n  \"title\": \"\",\n  \"body\": \"\",\n  \"background_color\": \"\"\n}";
+    p+="Also infer the brand name and suggest two colors: background_color (overall brand color, any shade) and icon_background_color (the darkest, most recognizable brand color — this will be used as the background for the app icon, with the logo shown in white on top of it).\n\n";
+    p+="{\n  \"brand_name\": \"\",\n  \"chosen_image_url\": \"\",\n  \"image_description\": \"\",\n  \"title\": \"\",\n  \"body\": \"\",\n  \"background_color\": \"\",\n  \"icon_background_color\": \"\"\n}";
     var resp=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key="+encodeURIComponent(apiKey),{
       method:"POST",
       headers:{"Content-Type":"application/json"},
@@ -463,7 +489,7 @@ async function callGemini(url,saleType,product,statusFn){
     notificationBody:result.body||"",
     heroImageUrl:result.chosen_image_url||"",
     logoUrl:logoUrl||"",
-    brandColors:{primary:result.background_color||"#6C5CE7",background:result.background_color||"#000"}
+    brandColors:{primary:result.icon_background_color||result.background_color||"#222",background:result.background_color||"#000"}
   };
 }
 
@@ -498,15 +524,12 @@ function buildCard(d,id){
 }
 
 function initIconBg(img){
-  var brandColor=img.getAttribute("data-brand-color")||"#6C5CE7";
+  var brandColor=img.getAttribute("data-brand-color")||"#222";
   var wrap=img.parentElement;
   if(!wrap)return;
-  getImageLuminance(img.src).then(function(lum){
-    if(lum===null){wrap.style.background=brandColor;return;}
-    if(lum>180){var bc=img.getAttribute("data-brand-color")||"#333";wrap.style.background=bc;wrap.style.filter="brightness(0.6)";}
-    else if(lum<80){wrap.style.background="#fff";}
-    else{wrap.style.background=brandColor;}
-  });
+  // Always use brand color as bg, make logo appear white/light via CSS filter
+  wrap.style.background=brandColor;
+  img.style.filter="brightness(0) invert(1)";
 }
 function iconFallback(img){
   var ini=img.getAttribute("data-ini")||"?";
