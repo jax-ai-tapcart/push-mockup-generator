@@ -160,22 +160,26 @@ function validateImage(url,isLogo){
   return new Promise(function(resolve){
     var img=new Image();
     img.crossOrigin="anonymous";
-    var t=setTimeout(function(){resolve(false)},5000);
+    var t=setTimeout(function(){console.log("[Validate] TIMEOUT:",url);resolve(false)},6000);
     img.onload=function(){
       clearTimeout(t);
-      var w=img.naturalWidth,h=img.naturalHeight,r=w/h;
-      var minRatio=isLogo?0.4:0.75;var maxRatio=3.0;
+      var w=img.naturalWidth,h=img.naturalHeight;
       if(isLogo){
-        resolve((w>=40&&h>=40&&r>=minRatio&&r<=maxRatio)?url:false);
+        var pass=w>=40&&h>=40;
+        console.log("[Validate logo]",(pass?"OK":"SKIP "+w+"x"+h),url);
+        resolve(pass?url:false);
       }else{
-        resolve(((w>=100||h>=100)&&r>=minRatio&&r<=maxRatio)?url:false);
+        // Loosened: only require non-zero dims and minimum 50px each dimension
+        // Let Gemini decide quality - we just need images that actually loaded
+        var pass=w>=50&&h>=50;
+        console.log("[Validate hero]",(pass?"OK "+w+"x"+h:"SKIP "+w+"x"+h),url);
+        resolve(pass?url:false);
       }
     };
-    img.onerror=function(){clearTimeout(t);resolve(false);};
+    img.onerror=function(){clearTimeout(t);console.log("[Validate] FAIL:",url);resolve(false);};
     img.src=url;
   });
 }
-
 function testLogoUrl(url,minWidth){
   // No crossOrigin — logos only need to display, not be read by canvas
   return new Promise(function(resolve){
@@ -229,33 +233,98 @@ async function getImageLuminance(url){
 
 async function fetchLogo(domain,brandUrl){
   var proxies=["https://corsproxy.io/?url="+encodeURIComponent(brandUrl),"https://api.allorigins.win/get?url="+encodeURIComponent(brandUrl)];
-  var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=/] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]","img[src*=Logo]","picture img","[class*=site-header] img","[class*=main-header] img"];
-  // Step 0: HTML scrape via proxy (try real logo from site first)
+  var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=\"/\"] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]"];
+  // Step 1: HTML scrape via proxy (website logo first - more accurate than Clearbit)
   for(var pi=0;pi<proxies.length;pi++){
     try{
+      console.log("[Logo] Trying proxy",pi,proxies[pi].substring(0,60)+"...");
       var hr=await fetch(proxies[pi],{signal:AbortSignal.timeout(7000)});
-      if(!hr.ok)continue;
+      if(!hr.ok){console.log("[Logo] Proxy",pi,"returned",hr.status);continue;}
       var rawHtml="";
       var hct=hr.headers.get("content-type")||"";
       if(hct.includes("json")){var hj=await hr.json();rawHtml=hj.contents||hj.data||"";}else{rawHtml=await hr.text();}
-      if(!rawHtml)continue;
+      if(!rawHtml){console.log("[Logo] Proxy",pi,"returned empty body");continue;}
+      console.log("[Logo] Got HTML from proxy",pi,"length:",rawHtml.length);
       // If corsproxy returned markdown, extract cdn/shop/files image URLs via regex
       if(hct.includes("markdown")||rawHtml.startsWith("---")){
+        console.log("[Logo] Proxy returned markdown, extracting CDN URLs");
         var mdImgs=(rawHtml.match(/https?:\/\/[a-zA-Z0-9._-]+\/cdn\/shop\/files\/[^)\s"]+/g)||[]).concat((rawHtml.match(/\/\/[a-zA-Z0-9._-]+\/cdn\/shop\/files\/[^)\s"]+/g)||[]).map(function(u){return"https:"+u;}));
         for(var mi=0;mi<mdImgs.length;mi++){var mv=await testLogoUrl(mdImgs[mi],40);if(mv)return mdImgs[mi];}
       }
+      // Extract image URLs from raw HTML via regex - works even if DOM parsing fails
+      var allImageUrls=(rawHtml.match(/https?:\/\/[^\s"'<>]+\.(?:png|jpg|jpeg|webp|gif|svg)[^"'<>\s]*/gi)||[]);
+      var logoImageUrls=allImageUrls.filter(function(u){return /logo|brand|wordmark/i.test(u);});
+      console.log("[Logo] Regex found",allImageUrls.length,"image URLs,",logoImageUrls.length,"with logo/brand/wordmark in URL");
+      // Try logo-indicating URLs from regex first (before DOM parse)
+      for(var ri=0;ri<logoImageUrls.length&&ri<5;ri++){
+        if(/\.svg/i.test(logoImageUrls[ri]))continue;
+        var rv=await testLogoUrl(logoImageUrls[ri],40);if(rv)return logoImageUrls[ri];
+      }
       var parser=new DOMParser();
       var doc=parser.parseFromString(rawHtml,"text/html");
+      // Standard logo selectors
       for(var si=0;si<logoSelectors.length;si++){
         var sel=logoSelectors[si];var els=doc.querySelectorAll(sel);
-        console.log("[Logo] trying selector:",sel,"found:",els.length);
+        console.log("[Logo] Selector",sel,"matched",els.length,"elements");
         for(var ei=0;ei<els.length;ei++){
           var el=els[ei];var src=el.getAttribute("src")||el.getAttribute("data-src")||el.getAttribute("href")||"";
           if(!src)continue;
+          if(/\.svg/i.test(src)){console.log("[Logo] Skipping SVG:",src);continue;}
           if(!src.startsWith("http")){try{src=new URL(src,brandUrl).href;}catch(e){continue;}}
           var r=await testLogoUrl(src,40);if(r)return src;
         }
       }
+      // Additional: img tags where src or alt contains "logo"
+      var allImgs=doc.querySelectorAll("img");
+      console.log("[Logo] Checking",allImgs.length,"total img tags for logo patterns");
+      for(var ai=0;ai<allImgs.length;ai++){
+        var ael=allImgs[ai];
+        var asrc=ael.getAttribute("src")||ael.getAttribute("data-src")||"";
+        var aalt=ael.getAttribute("alt")||"";
+        if(!asrc)continue;
+        if(/\.svg/i.test(asrc))continue;
+        var isLogoImg=/logo/i.test(asrc)||/logo/i.test(aalt);
+        if(!isLogoImg)continue;
+        if(!asrc.startsWith("http")){try{asrc=new URL(asrc,brandUrl).href;}catch(e){continue;}}
+        console.log("[Logo] Found logo-pattern img:",asrc);
+        var ar=await testLogoUrl(asrc,40);if(ar)return asrc;
+      }
+      // Additional: homepage links containing img - almost always the logo
+      var homepageLinks=doc.querySelectorAll('a[href="/"]');
+      try{
+        var domainLinks=doc.querySelectorAll('a[href^="'+new URL(brandUrl).origin+'"]');
+        homepageLinks=Array.from(homepageLinks).concat(Array.from(domainLinks));
+      }catch(e){}
+      console.log("[Logo] Found",homepageLinks.length,"homepage links to check for logos");
+      for(var hi=0;hi<homepageLinks.length;hi++){
+        var hImgs=homepageLinks[hi].querySelectorAll("img");
+        for(var hii=0;hii<hImgs.length;hii++){
+          var hsrc=hImgs[hii].getAttribute("src")||hImgs[hii].getAttribute("data-src")||"";
+          if(!hsrc||/\.svg/i.test(hsrc))continue;
+          if(!hsrc.startsWith("http")){try{hsrc=new URL(hsrc,brandUrl).href;}catch(e){continue;}}
+          console.log("[Logo] Homepage link img:",hsrc);
+          var hr2=await testLogoUrl(hsrc,40);if(hr2)return hsrc;
+        }
+      }
+      // Additional: picture elements with logo selectors
+      var pictures=doc.querySelectorAll("picture");
+      for(var pci=0;pci<pictures.length;pci++){
+        var pic=pictures[pci];
+        var picParent=pic.parentElement;
+        var picClass=(pic.getAttribute("class")||"")+(picParent?" "+(picParent.getAttribute("class")||"")+" "+(picParent.getAttribute("id")||""):"");
+        if(!/logo|brand/i.test(picClass))continue;
+        var picSources=pic.querySelectorAll("source[srcset],img");
+        for(var psi=0;psi<picSources.length;psi++){
+          var pssrc=picSources[psi].getAttribute("srcset")||picSources[psi].getAttribute("src")||"";
+          if(!pssrc)continue;
+          pssrc=pssrc.split(",")[0].trim().split(" ")[0];
+          if(/\.svg/i.test(pssrc))continue;
+          if(!pssrc.startsWith("http")){try{pssrc=new URL(pssrc,brandUrl).href;}catch(e){continue;}}
+          console.log("[Logo] Picture element logo:",pssrc);
+          var pr=await testLogoUrl(pssrc,40);if(pr)return pssrc;
+        }
+      }
+      // link rel icons
       var linkSels=["link[rel=apple-touch-icon]","link[rel=icon][sizes=\"192x192\"]","link[rel=icon][sizes=\"128x128\"]"];
       for(var li=0;li<linkSels.length;li++){
         var lel=doc.querySelector(linkSels[li]);if(!lel)continue;
@@ -265,12 +334,9 @@ async function fetchLogo(domain,brandUrl){
         var lr=await testLogoUrl(lsrc,40);if(lr)return lsrc;
       }
       break;
-    }catch(e){continue;}
+    }catch(e){console.log("[Logo] Proxy",pi,"error:",e.message);continue;}
   }
-  // Step 1: Clearbit — fallback brand wordmarks
-  var cbSrc="https://logo.clearbit.com/"+domain;
-  var cb=await testLogoUrl(cbSrc,40);if(cb)return cbSrc;
-  // Step 2: microlink logo (skip gstatic/faviconV2 — those are just favicons)
+  // Step 2: microlink logo (skip gstatic/faviconV2 - those are just favicons)
   try{
     var mlr=await fetch("https://api.microlink.io/?url="+encodeURIComponent(brandUrl)+"&palette=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
     if(mlr.ok){
@@ -282,10 +348,14 @@ async function fetchLogo(domain,brandUrl){
       }
     }
   }catch(e){}
-  // Step 3: Google favicon (16px check, no crossOrigin)
+  // Step 3: Clearbit - moved to end of chain since it returns generic logos
+  var cbSrc="https://logo.clearbit.com/"+domain;
+  console.log("[Logo] Trying Clearbit:",cbSrc);
+  var cb=await testLogoUrl(cbSrc,40);if(cb)return cbSrc;
+  // Step 4: Google favicon
   var gfSrc="https://www.google.com/s2/favicons?domain="+domain+"&sz=128";
   var gf=await testLogoUrl(gfSrc,17);if(gf)return gfSrc;
-  // Step 4: icon.horse
+  // Step 5: icon.horse
   var ihSrc="https://icon.horse/icon/"+domain;
   var ih=await testLogoUrl(ihSrc,17);if(ih)return ihSrc;
   return null;
@@ -315,7 +385,7 @@ async function collectCandidateImages(brandUrl){
   var base=brandUrl.replace(/\/+$/,"");
   function add(u){if(u&&typeof u==="string"&&u.startsWith("http")&&!seen.has(u)){seen.add(u);candidates.push(u);}}
 
-  // Source A: microlink on homepage — returns og:image / editorial featured image
+  // Source A: microlink on homepage - returns og:image / editorial featured image
   try{
     var ml=await fetch("https://api.microlink.io/?url="+encodeURIComponent(base)+"&palette=true&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
     if(ml.ok){
@@ -325,19 +395,19 @@ async function collectCandidateImages(brandUrl){
         if(mld.data.colors)brandPalette=mld.data.colors;
       }
     }
-  }catch(e){}
+  }catch(e){console.log("[Images] microlink homepage error:",e.message);}
 
-  // Source B: microlink on /collections page — editorial lifestyle banners
+  // Source B: microlink on /collections page - editorial lifestyle banners
   try{
     var ml2=await fetch("https://api.microlink.io/?url="+encodeURIComponent(base+"/collections")+"&palette=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(8000)});
     if(ml2.ok){
       var ml2d=await ml2.json();
       if(ml2d.data&&ml2d.data.image&&ml2d.data.image.url)add(ml2d.data.image.url);
     }
-  }catch(e){}
+  }catch(e){console.log("[Images] microlink collections error:",e.message);}
 
-
-  // Source C: og:image meta scrape and img tag scraping from homepage via proxy
+  // Source C: og:image meta scrape + img tag scrape from homepage via proxy
+  var proxyHtml=""; // save HTML for img tag scraping
   var proxies=[
     "https://corsproxy.io/?url="+encodeURIComponent(base),
     "https://api.allorigins.win/get?url="+encodeURIComponent(base)
@@ -351,35 +421,48 @@ async function collectCandidateImages(brandUrl){
       if(hct.includes("json")){var hj=await hr.json();rawHtml=hj.contents||hj.data||"";}
       else{rawHtml=await hr.text();}
       if(!rawHtml)continue;
+      proxyHtml=rawHtml; // save for img scraping below
       // Handle corsproxy markdown frontmatter (image: url) and raw HTML meta tags
       var fmMatch=rawHtml.match(/^image:\s*(https?:\/\/[^\s\n]+)/m);
       if(fmMatch&&fmMatch[1])add(fmMatch[1]);
-      // Also handle protocol-relative URLs in markdown
       var prMatches=rawHtml.match(/https:\/\/[a-zA-Z0-9._-]+\/cdn\/shop\/files\/[^)\s"]+/g)||[];
       prMatches.forEach(function(u){add(u);});
-      // Raw HTML og:image meta tags (allorigins)
-      var ogM=rawHtml.match(/<meta[^>]+content=["']([^"']+)["'][^>]*(?:og:image|twitter:image)|(?:og:image|twitter:image)[^>]+content=["']([^"']+)/gi)||[];
-      ogM.forEach(function(m){var mc=m.match(/content=["']([^"']+)/);if(mc&&mc[1]){var s=mc[1];if(!s.startsWith("http"))try{s=new URL(s,base).href;}catch(e){return;}add(s);}});
-      // img tag scraping — collect general page images
-      var doc=new DOMParser().parseFromString(rawHtml,"text/html");
-      var imgEls=doc.querySelectorAll("img[src], img[data-src]");
-      var imgCount=0;
-      for(var ii=0;ii<imgEls.length&&imgCount<10;ii++){
-        var iel=imgEls[ii];
-        var isrc=iel.getAttribute("src")||iel.getAttribute("data-src")||"";
-        if(!isrc)continue;
-        var isrcLower=isrc.toLowerCase();
-        if(isrcLower.indexOf("logo")!==-1||isrcLower.indexOf("icon")!==-1||isrcLower.indexOf("badge")!==-1||isrcLower.indexOf("sprite")!==-1||isrcLower.indexOf("pixel")!==-1||isrcLower.indexOf("tracking")!==-1||isrcLower.indexOf(".svg")!==-1)continue;
-        var ialt=(iel.getAttribute("alt")||"").toLowerCase();
-        if(ialt.indexOf("logo")!==-1||ialt.indexOf("icon")!==-1)continue;
-        if(!isrc.startsWith("http")){try{isrc=new URL(isrc,base).href;}catch(e){continue;}}
-        add(isrc);
-        imgCount++;
-      }
+      // Raw HTML og:image meta tags
+      var ogM=rawHtml.match(/<meta[^>]+content=["'"]([^"'"]+)["'"][^>]*(?:og:image|twitter:image)|(?:og:image|twitter:image)[^>]+content=["'"]([^"'"]+)/gi)||[];
+      ogM.forEach(function(m){var mc=m.match(/content=["'"]([^"'"]+)/);if(mc&&mc[1]){var s=mc[1];if(!s.startsWith("http"))try{s=new URL(s,base).href;}catch(e){return;}add(s);}});
       break;
     }catch(e){continue;}
   }
-  // Source D: Shopify collections.json — collection images are usually lifestyle banners not catalog shots
+
+  // Source D: Scrape img tags from HTML (new - not just og:image)
+  if(proxyHtml){
+    try{
+      var parser=new DOMParser();
+      var doc=parser.parseFromString(proxyHtml,"text/html");
+      var skipPattern=/logo|icon|badge|sprite|svg|pixel|tracking|spacer|placeholder/i;
+      var allImgs=doc.querySelectorAll("img");
+      var imgCount=0;
+      console.log("[Images] Scraping",allImgs.length,"img tags from HTML");
+      for(var ii=0;ii<allImgs.length&&imgCount<8;ii++){
+        var imgEl=allImgs[ii];
+        var imgSrc=imgEl.getAttribute("src")||imgEl.getAttribute("data-src")||imgEl.getAttribute("data-srcset")||"";
+        if(!imgSrc)continue;
+        imgSrc=imgSrc.split(",")[0].trim().split(" ")[0];
+        if(!imgSrc)continue;
+        var imgAlt=imgEl.getAttribute("alt")||"";
+        if(/\.svg/i.test(imgSrc))continue;
+        if(skipPattern.test(imgSrc)||skipPattern.test(imgAlt))continue;
+        if(!imgSrc.startsWith("http")){
+          try{imgSrc=new URL(imgSrc,base).href;}catch(e){continue;}
+        }
+        add(imgSrc);
+        imgCount++;
+      }
+      console.log("[Images] Added",imgCount,"images from img tag scraping");
+    }catch(e){console.log("[Images] img scrape error:",e.message);}
+  }
+
+  // Source E: Shopify collections.json - collection images are usually lifestyle banners
   try{
     var colUrl=base+"/collections.json?limit=6";
     var cproxies=[
@@ -404,8 +487,7 @@ async function collectCandidateImages(brandUrl){
     }
   }catch(e){}
 
-
-  // Source E: Shopify products.json — product hero images
+  // Source F: Shopify products.json - product images as additional candidates
   try{
     var prodUrl=base+"/products.json?limit=6";
     var pproxies=[
@@ -421,18 +503,22 @@ async function collectCandidateImages(brandUrl){
         if(pct.includes("json")){var praw=await pr.json();pj=praw.contents?JSON.parse(praw.contents):praw;}
         else{pj=JSON.parse(await pr.text());}
         if(pj&&Array.isArray(pj.products)){
+          console.log("[Images] Found",pj.products.length,"products from products.json");
           pj.products.slice(0,6).forEach(function(prod){
-            if(prod.images&&prod.images.length>0&&prod.images[0].src)add(prod.images[0].src);
+            if(prod.images&&prod.images.length>0&&prod.images[0].src){
+              add(prod.images[0].src);
+            }
           });
           break;
         }
       }catch(e){continue;}
     }
-  }catch(e){}
+  }catch(e){console.log("[Images] products.json error:",e.message);}
 
-  // Source F: microlink screenshot fallback for antibot sites
+  // Source G: microlink screenshot fallback - if we still have 0 candidates
   if(candidates.length===0){
     try{
+      console.log("[Images] No candidates yet, trying microlink screenshot");
       var slr=await fetch("https://api.microlink.io/?url="+encodeURIComponent(base)+"&screenshot=true&meta=false&audio=false&video=false&iframe=false",{signal:AbortSignal.timeout(15000)});
       if(slr.ok){
         var sld=await slr.json();
