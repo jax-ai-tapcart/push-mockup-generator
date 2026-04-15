@@ -227,53 +227,38 @@ async function getImageLuminance(url){
   }catch(e){return null;}
 }
 
-async function fetchSocialProfileLogo(domain, brandUrl) {
-  var domainParts = domain.replace(/^www\./, "").split(".");
-  var slug = domainParts[0];
-  var socialUrls = [
-    "https://www.facebook.com/" + slug,
-    "https://www.facebook.com/pages/" + slug,
-    "https://www.linkedin.com/company/" + slug
-  ];
-  var proxies = [
-    function(u) { return "https://corsproxy.io/?url=" + encodeURIComponent(u); },
-    function(u) { return "https://api.allorigins.win/get?url=" + encodeURIComponent(u); }
-  ];
-  for (var si = 0; si < socialUrls.length; si++) {
-    for (var pi = 0; pi < proxies.length; pi++) {
-      try {
-        var proxyUrl = proxies[pi](socialUrls[si]);
-        var resp = await fetch(proxyUrl, { signal: AbortSignal.timeout(7000) });
-        if (!resp.ok) continue;
-        var rawHtml = "";
-        var ct = resp.headers.get("content-type") || "";
-        if (ct.includes("json")) { var j = await resp.json(); rawHtml = j.contents || j.data || ""; }
-        else { rawHtml = await resp.text(); }
-        if (!rawHtml) continue;
-        var ogMatch = rawHtml.match(/<meta[^>]+(?:property|name)=["'"]og:image["'"][^>]+content=["'"]([^"']+)["'"]/i)
-                  || rawHtml.match(/<meta[^>]+content=["'"]([^"']+)["'"][^>]+(?:property|name)=["'"]og:image["'"]/i);
-        if (ogMatch && ogMatch[1]) {
-          var ogUrl = ogMatch[1];
-          if (!ogUrl.includes("facebook.com/rsrc") && !ogUrl.includes("static.licdn")) {
-            console.log("[SocialLogo] Found og:image from", socialUrls[si], ":", ogUrl);
-            var valid = await testLogoUrl(ogUrl, 40);
-            if (valid) return ogUrl;
-          }
+async function fetchSocialProfileLogo(domain,brandUrl){
+  var slug=domain.replace(/^www[.]/,"").split(".")[0];
+  var urls=["https://www.facebook.com/"+slug,"https://www.linkedin.com/company/"+slug];
+  for(var si=0;si<urls.length;si++){
+    var plist=["https://corsproxy.io/?url="+encodeURIComponent(urls[si]),"https://api.allorigins.win/get?url="+encodeURIComponent(urls[si])];
+    for(var pi=0;pi<plist.length;pi++){try{
+      var resp=await fetch(plist[pi],{signal:AbortSignal.timeout(7000)});
+      if(!resp.ok)continue;
+      var html="";
+      if((resp.headers.get("content-type")||"").includes("json")){var j=await resp.json();html=j.contents||j.data||"";}
+      else{html=await resp.text();}
+      if(!html)continue;
+      var idx=html.indexOf("og:image");
+      while(idx!==-1){
+        var chunk=html.substring(idx,idx+300);
+        var cm=chunk.match(/content="([^"]+)"/);
+        if(cm&&cm[1]&&cm[1].startsWith("http")&&!cm[1].includes("fbsbx")&&!cm[1].includes("static.licdn")){
+          var v=await testLogoUrl(cm[1],40);
+          if(v){console.log("[SocialLogo] Hit:",cm[1]);return cm[1];}
         }
-      } catch(e) {
-        console.log("[SocialLogo] Error on", socialUrls[si], ":", e.message);
-        continue;
+        idx=html.indexOf("og:image",idx+1);
       }
-    }
+    }catch(e){continue;}}
   }
   return null;
 }
 async function fetchLogo(domain,brandUrl){
-  // Step 0: Try social profile images first (Facebook/LinkedIn)
-  var socialLogo = await fetchSocialProfileLogo(domain, brandUrl);
-  if (socialLogo) { console.log("[Logo] Using social profile logo:", socialLogo); return socialLogo; }
   var proxies=["https://corsproxy.io/?url="+encodeURIComponent(brandUrl),"https://api.allorigins.win/get?url="+encodeURIComponent(brandUrl)];
   var logoSelectors=["img[class*=logo]","img[id*=logo]","img[alt*=logo]","img[alt*=brand]","a[class*=logo] img","a[href=\"/\"] img","header img","nav img","[class*=header] img","[class*=navbar] img","[class*=brand] img","img.header__heading-logo","img.site-header__logo-image",".header__heading img","[class*=site-logo] img","[class*=header-logo] img","img[src*=logo]","img[src*=Logo]","[class*=site-header] img","[class*=main-header] img","[class*=top-bar] img"];
+  // Step 0: Try Facebook/LinkedIn og:image first (profile photos are always square and brand-accurate)
+  var socialLogo=await fetchSocialProfileLogo(domain,brandUrl);
+  if(socialLogo){console.log("[Logo] Using social profile logo:",socialLogo);return socialLogo;}
   // Step 1: HTML scrape via proxy (website logo first - more accurate than Clearbit)
   for(var pi=0;pi<proxies.length;pi++){
     try{
