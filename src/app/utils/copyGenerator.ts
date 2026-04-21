@@ -1,112 +1,155 @@
-import type { BrandData, ProductImage } from './contextdev';
+import type { BrandData, ProductImage } from "./contextdev";
 
 export type MessageType =
-  | 'new-arrivals'
-  | 'flash-sale'
-  | 'back-in-stock'
-  | 'limited-time'
-  | 'exclusive'
-  | 'best-sellers'
-  | 'seasonal'
-  | 'loyalty';
+  | "new-arrivals"
+  | "flash-sale"
+  | "back-in-stock"
+  | "limited-time"
+  | "exclusive-offer"
+  | "free-shipping"
+  | "loyalty-reward"
+  | "abandoned-cart"
+  | "price-drop"
+  | "seasonal";
 
 export const MESSAGE_TYPES: Array<{ value: MessageType; label: string }> = [
-  { value: 'new-arrivals', label: 'New Arrivals' },
-  { value: 'flash-sale', label: 'Flash Sale' },
-  { value: 'back-in-stock', label: 'Back In Stock' },
-  { value: 'limited-time', label: 'Limited Time Offer' },
-  { value: 'exclusive', label: 'Exclusive Drop' },
-  { value: 'best-sellers', label: 'Best Sellers' },
-  { value: 'seasonal', label: 'Seasonal Collection' },
-  { value: 'loyalty', label: 'Member Reward' },
+  { value: "new-arrivals", label: "New Arrivals" },
+  { value: "flash-sale", label: "Flash Sale" },
+  { value: "back-in-stock", label: "Back in Stock" },
+  { value: "limited-time", label: "Limited Time Offer" },
+  { value: "exclusive-offer", label: "Exclusive Offer" },
+  { value: "free-shipping", label: "Free Shipping" },
+  { value: "loyalty-reward", label: "Loyalty Reward" },
+  { value: "abandoned-cart", label: "Abandoned Cart" },
+  { value: "price-drop", label: "Price Drop" },
+  { value: "seasonal", label: "Seasonal" },
 ];
 
-const TEMPLATES: Record<MessageType, (productName?: string) => { title: string; body: string }> = {
-  'new-arrivals': (p) => ({
-    title: p ? 'New: ' + p + ' is here u2728' : 'New arrivals just dropped u2728',
-    body: p ? 'Shop ' + p + ' before it sells out.' : 'Fresh styles added to the store. Shop now.',
-  }),
-  'flash-sale': (p) => ({
-    title: p ? p + ' on sale u26a1' : 'Flash sale u2014 today only u26a1',
-    body: p ? p + ' is part of our flash sale. Don't miss it.' : 'Up to 400ff u2014 ends tonight. Grab it now.',
-  }),
-  'back-in-stock': (p) => ({
-    title: p ? p + ' is back ud83dude4c' : 'Back in stock ud83dude4c',
-    body: p ? p + ' is available again. Grab yours before it's gone.' : 'Your wishlist item is available again.',
-  }),
-  'limited-time': (p) => ({
-    title: p ? p + ' u2014 limited offer u23f0' : 'Limited time offer u23f0',
-    body: p ? 'Get ' + p + ' at a special price u2014 offer ends soon.' : 'This deal wonu2019t last long. Shop now.',
-  }),
-  'exclusive': (p) => ({
-    title: p ? 'Exclusive: ' + p + ' ud83dudd12' : 'Exclusive drop ud83dudd12',
-    body: p ? p + ' is exclusively yours u2014 members only.' : 'Only for our VIP members. Unlock your access.',
-  }),
-  'best-sellers': (p) => ({
-    title: p ? p + ' is a fan fave u2b50' : 'Our best sellers u2b50',
-    body: p ? 'See why everyone loves ' + p + '.' : 'Discover what everyone is buying right now.',
-  }),
-  'seasonal': (p) => ({
-    title: p ? p + ' u2014 the seasonu2019s pick ud83cudf43' : 'Seasonal collection is live ud83cudf43',
-    body: p ? 'Perfect for the season: ' + p + '. Shop it now.' : 'Shop our seasonal edit u2014 curated for right now.',
-  }),
-  'loyalty': (_p) => ({
-    title: 'Your reward is waiting ud83cudf81',
-    body: 'Youu2019ve earned points. Redeem them for something special.',
-  }),
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+const GEMINI_MODEL = "gemini-2.5-flash";
+
+const MESSAGE_TEMPLATES: Record<MessageType, { title: string; body: string }> = {
+  "new-arrivals": {
+    title: "New arrivals just dropped",
+    body: "Check out what's new in our collection. Fresh styles, just for you.",
+  },
+  "flash-sale": {
+    title: "Flash sale — limited time only",
+    body: "Up to 40% off select items. Hurry, this deal won't last long.",
+  },
+  "back-in-stock": {
+    title: "Back in stock",
+    body: "Your favorites are back. Grab them before they sell out again.",
+  },
+  "limited-time": {
+    title: "Limited time offer",
+    body: "This exclusive deal expires soon. Don't miss out.",
+  },
+  "exclusive-offer": {
+    title: "Exclusive offer for you",
+    body: "As a valued customer, here's a special deal just for you.",
+  },
+  "free-shipping": {
+    title: "Free shipping, today only",
+    body: "Shop now and get free delivery on your entire order.",
+  },
+  "loyalty-reward": {
+    title: "You've earned a reward",
+    body: "Congrats! You've unlocked a special discount. Use it now.",
+  },
+  "abandoned-cart": {
+    title: "Still thinking it over?",
+    body: "You left something behind. Complete your purchase before it's gone.",
+  },
+  "price-drop": {
+    title: "Price drop on your wishlist",
+    body: "Good news — something you loved just got cheaper.",
+  },
+  "seasonal": {
+    title: "The season's biggest sale",
+    body: "Shop our seasonal collection and save big. Shop now.",
+  },
 };
 
 export function getMessageTemplate(
   type: MessageType,
   productName?: string
 ): { title: string; body: string } {
-  return TEMPLATES[type]?.(productName) ?? TEMPLATES['new-arrivals'](productName);
+  const template = MESSAGE_TEMPLATES[type] || MESSAGE_TEMPLATES["new-arrivals"];
+  if (productName) {
+    return {
+      title: template.title,
+      body: template.body.replace(/your favorites|something you loved|what's new/i, productName),
+    };
+  }
+  return { ...template };
 }
 
-export interface GeneratedCopy {
-  title: string;
-  body: string;
-  selectedImageUrl: string;
-  productName?: string;
-}
+async function generateCopyWithGemini(
+  brandData: BrandData,
+  productTitle: string | undefined,
+  messageType: MessageType
+): Promise<{ title: string; body: string }> {
+  if (!GEMINI_API_KEY) throw new Error("No Gemini API key");
 
-function pickBestImage(images: ProductImage[]): string {
-  // Prefer landscape images (wider than tall) over square/portrait
-  // Avoid tiny thumbnails
-  const candidates = images.filter((img) => {
-    if (!img.url) return false;
-    // Skip tiny images if dimensions known
-    if (img.width && img.height) {
-      if (img.width < 200 || img.height < 100) return false;
+  const prompt = `You are writing iOS push notification copy for an e-commerce brand.
+
+Brand: ${brandData.title}
+Brand description: ${brandData.description || "N/A"}
+Product: ${productTitle || "general collection"}
+Message type: ${messageType}
+
+Write a short, engaging iOS push notification with:
+- title: max 40 characters, compelling
+- body: max 100 characters, specific to the brand/product
+
+Respond with JSON only:
+{"title": "...", "body": "..."}`;
+
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" },
+      }),
     }
-    return true;
-  });
-
-  // Prefer landscape
-  const landscape = candidates.filter(
-    (img) => img.width && img.height && img.width > img.height
   );
-  const pool = landscape.length > 0 ? landscape : candidates;
 
-  if (pool.length === 0 && images.length > 0) return images[0].url;
-  if (pool.length === 0) return '';
+  if (!response.ok) throw new Error(`Gemini API error: ${response.status}`);
 
-  return pool[Math.floor(Math.random() * Math.min(pool.length, 5))].url;
+  const data = await response.json();
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+  const parsed = JSON.parse(text);
+
+  if (!parsed.title || !parsed.body) throw new Error("Invalid Gemini response");
+  return { title: parsed.title, body: parsed.body };
 }
 
 export async function selectImageAndGenerateCopy(
   brandData: BrandData,
   products: ProductImage[],
   messageType: MessageType
-): Promise<GeneratedCopy> {
-  const selectedImageUrl = pickBestImage(products);
-  const productName = products.find((p) => p.alt && p.url === selectedImageUrl)?.alt;
-  const copy = getMessageTemplate(messageType, productName);
+): Promise<{ title: string; body: string; selectedImageUrl: string; productName?: string }> {
+  // Pick a random product image if available
+  let selectedImageUrl = "";
+  let productName: string | undefined;
 
-  return {
-    title: copy.title,
-    body: copy.body,
-    selectedImageUrl,
-    productName,
-  };
+  if (products.length > 0) {
+    const randomProduct = products[Math.floor(Math.random() * Math.min(products.length, 10))];
+    selectedImageUrl = randomProduct.url || "";
+    productName = randomProduct.title;
+  }
+
+  // Try Gemini first, fall back to templates
+  let copy: { title: string; body: string };
+  try {
+    copy = await generateCopyWithGemini(brandData, productName, messageType);
+  } catch {
+    copy = getMessageTemplate(messageType, productName);
+  }
+
+  return { ...copy, selectedImageUrl, productName };
 }
