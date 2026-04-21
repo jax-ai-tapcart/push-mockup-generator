@@ -14,7 +14,7 @@ type GeneratedCard = NotificationCardData & {
 
 export default function App() {
   const [mode, setMode] = useState<'single' | 'bulk'>('single');
-  const [inputUrl, setInputUrl] = useState('');
+  const [inputUrl, setInputUrl] = useState(''  );
   const [bulkUrls, setBulkUrls] = useState('');
   const [messageType, setMessageType] = useState<MessageType>('new-arrivals');
   const [skipCache, setSkipCache] = useState(false);
@@ -28,7 +28,7 @@ export default function App() {
   const [editingHero, setEditingHero] = useState('');
   const [editingTemplate, setEditingTemplate] = useState<MessageType>('new-arrivals');
 
-  const cardRef = useRef<HTMLDIWElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const currentCard = generatedCards[currentCardIndex];
 
   useEffect(() => {
@@ -157,3 +157,57 @@ export default function App() {
       await exportToPng(i);
     }
   };
+
+  return (
+    <div className="min-h-screen bg-[#0f0f0f] text-white p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">Tapcart Push Mockup Generator</h1>
+          <p className="text-gray-400">Generate realistic iOS push notification mockups for e-commerce brands</p>
+        </div>
+        <div className="flex gap-4 mb-8">
+          <button onClick={() => setMode('single')} className={`px-6 py-2 rounded-lg font-medium transition-colors ${mode === 'single' ? 'bg-purple-600 text-white' : 'bg-[#1a1a1a] text-gray-400 hover:text-white'}`}>Single Mode</button>
+          <button onClick={() => setMode('bulk')} className={`px-6 py-2 rounded-lg font-medium transition-colors ${mode === 'bulk' ? 'bg-purple-600 text-white' : 'bg-[#1a1a1a] text-gray-400 hover:text-white'}`}>Bulk Mode</button>
+        </div>
+        {generatedCards.length === 0 ? (
+          <div className="bg-[#1a1a1a] rounded-xl p-8 border border-gray-800">
+            <div className="mb-6">
+              <label className="block">
+                <span className="text-gray-300 mb-2 block">Message Type</span>
+                <select value={messageType} onChange={(e) => setMessageType(e.target.value as MessageType)} className="w-full px-4 py-3 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white">
+                  {MESSAGE_TYPES.map((type) => (<option key={type.value} value={type.value}>{type.label}</option>))}
+                </select>
+              </label>
+            </div>
+            <div className="mb-6">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={skipCache} onChange={(e) => setSkipCache(e.target.checked)} className="w-4 h-4 bg-[#0f0f0f] border border-gray-800 rounded" />
+                <span className="text-sm text-gray-300">Refresh cache (fetch fresh data from Context.dev)</span>
+              </label>
+            </div>
+            {mode === 'single' ? (
+              <div className="space-y-4">
+                <label className="block">
+                  <span className="text-gray-300 mb-2 block">Brand URL</span>
+                  <input type="text" value={inputUrl} onChange={(e) => setInputUrl(e.target.value)} placeholder="https://example.com" className="w-full px-4 py-3 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white" />
+                </label>
+                <button onClick={generateCards} disabled={isGenerating} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg font-medium transition-colors flex items-center gap-2">
+                  {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isGenerating ? 'Generating...' : 'Generate Notification'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <label className="block">
+                  <span className="text-gray-300 mb-2 block">Brand URLs (one per line)</span>
+                  <textarea value={bulkUrls} onChange={(e) => setBulkUrls(e.target.value)} placeholder={"https://example1.com\nhttps://example2.com"} rows={8} className="w-full px-4 py-3 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white font-mono text-sm" />
+                </label>
+                <button onClick={generateCards} disabled={isGenerating} className="px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg font-medium transition-colors flex items-center gap-2">
+                  {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {isGenerating ? 'Generating All...' : 'Generate All Notifications'}
+                </button>
+              </div>
+            )}
+            {error && <div className="mt-4 p-4 bg-red-500/10 border border-red-500/50 rounded-lg text-red-400">{error}</div>}
+          </div>
+        ) : (
