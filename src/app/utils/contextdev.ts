@@ -1,4 +1,5 @@
 const CONTEXT_API_BASE = "https://api.context.dev/v1";
+const CONTEXT_API_KEY = import.meta.env.VITE_CONTEXT_DEV_API_KEY as string | undefined;
 
 export interface BrandLogo {
   url: string;
@@ -12,17 +13,18 @@ export interface BrandColor {
   name?: string;
 }
 
+export interface BrandSocial {
+  type: string;
+  url: string;
+}
+
 export interface BrandData {
   title: string;
   description?: string;
   domain: string;
   logos: BrandLogo[];
   colors: BrandColor[];
-  social?: {
-    facebook?: string;
-    twitter?: string;
-    instagram?: string;
-  };
+  socials?: BrandSocial[];
 }
 
 export interface ProductImage {
@@ -41,12 +43,23 @@ function getDomainKey(url: string): string {
   }
 }
 
+function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...extra,
+  };
+  if (CONTEXT_API_KEY) {
+    headers["Authorization"] = `Bearer ${CONTEXT_API_KEY}`;
+  }
+  return headers;
+}
+
 export async function getBrandData(url: string, skipCache = false): Promise<BrandData> {
   const domain = getDomainKey(url);
-  const endpoint = `${CONTEXT_API_BASE}/brand?domain=${encodeURIComponent(domain)}${skipCache ? "&skip_cache=true" : ""}`;
+  const endpoint = `${CONTEXT_API_BASE}/brand/retrieve?domain=${encodeURIComponent(domain)}${skipCache ? "&skip_cache=true" : ""}`;
 
   const response = await fetch(endpoint, {
-    headers: { "Accept": "application/json" },
+    headers: authHeaders(),
   });
 
   if (!response.ok) {
@@ -54,15 +67,17 @@ export async function getBrandData(url: string, skipCache = false): Promise<Bran
   }
 
   const data = await response.json();
-  return data as BrandData;
+  return (data.brand ?? data) as BrandData;
 }
 
-export async function getProductImages(url: string, skipCache = false): Promise<ProductImage[]> {
+export async function getProductImages(url: string, _skipCache = false): Promise<ProductImage[]> {
   const domain = getDomainKey(url);
-  const endpoint = `${CONTEXT_API_BASE}/products?domain=${encodeURIComponent(domain)}${skipCache ? "&skip_cache=true" : ""}`;
+  const endpoint = `${CONTEXT_API_BASE}/brand/ai/products`;
 
   const response = await fetch(endpoint, {
-    headers: { "Accept": "application/json" },
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ domain }),
   });
 
   if (!response.ok) {
@@ -72,11 +87,17 @@ export async function getProductImages(url: string, skipCache = false): Promise<
 
   const data = await response.json();
   const products = Array.isArray(data) ? data : data.products || [];
-  return products as ProductImage[];
+  return products.map((product: any) => ({
+    url: product.image_url || product.images?.[0] || product.url || "",
+    alt: product.alt,
+    title: product.name || product.title,
+    price: product.price,
+  })) as ProductImage[];
 }
 
 export function getFacebookProfilePicture(brandData: BrandData): string | null {
-  const fbUrl = brandData.social?.facebook;
+  const fb = brandData.socials?.find((s) => s.type === "facebook");
+  const fbUrl = fb?.url;
   if (!fbUrl) return null;
 
   // Extract Facebook page ID or username from URL
