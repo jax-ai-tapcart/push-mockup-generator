@@ -1,18 +1,18 @@
 import { forwardRef } from "react";
 
 export interface ImageTransform {
-  /** Scale factor, 1.0 = 100-percent. */
+  /** Scale factor, 1.0 = 100-percent. Only zooms IN (>= 1). */
   scale: number;
-  /** Horizontal offset in pixels from center. */
+  /** Horizontal anchor as 0-100 percent (50 = center). */
   offsetX: number;
-  /** Vertical offset in pixels from center. */
+  /** Vertical anchor as 0-100 percent (50 = center). */
   offsetY: number;
 }
 
 export const DEFAULT_TRANSFORM: ImageTransform = {
   scale: 1,
-  offsetX: 0,
-  offsetY: 0,
+  offsetX: 50,
+  offsetY: 50,
 };
 
 export interface NotificationCardData {
@@ -33,14 +33,21 @@ interface NotificationCardProps {
 const FONT_STACK =
   "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Helvetica Neue\", sans-serif";
 
-function buildTransform(t: ImageTransform | undefined): string {
-  const tr = t ?? DEFAULT_TRANSFORM;
-  return `translate(${tr.offsetX}px, ${tr.offsetY}px) scale(${tr.scale})`;
+/**
+ * Resolve a transform (defaults applied). We use `object-position` to pan
+ * inside the already-clipped crop window, and `transform: scale()` with
+ * `transform-origin` at the same anchor point so zoom happens around the
+ * visible pan target without clipping anything outside the container.
+ */
+function resolveTransform(t: ImageTransform | undefined): ImageTransform {
+  return t ?? DEFAULT_TRANSFORM;
 }
 
 export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps>(
   ({ data }, ref) => {
     const timestamp = "now";
+    const logoT = resolveTransform(data.logoTransform);
+    const heroT = resolveTransform(data.heroTransform);
 
     return (
       <div
@@ -86,8 +93,9 @@ export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps
                   width: "100%",
                   height: "100%",
                   objectFit: "contain",
-                  transform: buildTransform(data.logoTransform),
-                  transformOrigin: "center center",
+                  objectPosition: `${logoT.offsetX}% ${logoT.offsetY}%`,
+                  transform: `scale(${logoT.scale})`,
+                  transformOrigin: `${logoT.offsetX}% ${logoT.offsetY}%`,
                 }}
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
@@ -162,9 +170,10 @@ export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps
                 width: "100%",
                 height: "100%",
                 objectFit: "cover",
+                objectPosition: `${heroT.offsetX}% ${heroT.offsetY}%`,
                 display: "block",
-                transform: buildTransform(data.heroTransform),
-                transformOrigin: "center center",
+                transform: `scale(${heroT.scale})`,
+                transformOrigin: `${heroT.offsetX}% ${heroT.offsetY}%`,
               }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;

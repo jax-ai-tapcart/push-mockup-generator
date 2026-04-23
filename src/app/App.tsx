@@ -11,7 +11,12 @@ import {
   Trash2,
   Plus,
   Search,
+  Settings as SettingsIcon,
+  X,
+  Smile,
 } from "lucide-react";
+import Picker from "@emoji-mart/react";
+import emojiData from "@emoji-mart/data";
 import {
   NotificationCard,
   type NotificationCardData,
@@ -22,6 +27,7 @@ import {
   researchBrand,
   brandNameFromUrl,
   searchProductImages,
+  getGeminiApiKey,
 } from "./utils/copyGenerator";
 
 type ImageSource = "upload" | "url" | "search";
@@ -124,6 +130,17 @@ function fileToDataUrl(file: File): Promise<string> {
   });
 }
 
+function insertAtCursor(
+  field: HTMLInputElement | HTMLTextAreaElement | null,
+  current: string,
+  text: string
+): string {
+  if (!field) return current + text;
+  const start = field.selectionStart ?? current.length;
+  const end = field.selectionEnd ?? current.length;
+  return current.slice(0, start) + text + current.slice(end);
+}
+
 export default function App() {
   const [mode, setMode] = useState<"single" | "bulk">("single");
   const [singleRow, setSingleRow] = useState<InputRow>(emptyRow());
@@ -132,6 +149,10 @@ export default function App() {
   const [error, setError] = useState("");
   const [isExporting, setIsExporting] = useState(false);
   const [isBulkExporting, setIsBulkExporting] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [apiKeyPresent, setApiKeyPresent] = useState<boolean>(() =>
+    Boolean(getGeminiApiKey())
+  );
 
   const singlePreviewRef = useRef<HTMLDivElement>(null);
   const bulkPreviewRef = useRef<HTMLDivElement>(null);
@@ -315,17 +336,39 @@ export default function App() {
     [activeBulkRow]
   );
 
+  const refreshApiKeyIndicator = () => {
+    setApiKeyPresent(Boolean(getGeminiApiKey()));
+  };
 
   return (
     <div className="min-h-screen bg-[#0f0f0f] text-white p-8">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
-            Tapcart Push Mockup Generator
-          </h1>
-          <p className="text-gray-400">
-            Build pixel-perfect iOS push notification previews. Single or bulk.
-          </p>
+        <header className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
+              Tapcart Push Mockup Generator
+            </h1>
+            <p className="text-gray-400">
+              Build pixel-perfect iOS push notification previews. Single or bulk.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {!apiKeyPresent && (
+              <div className="flex items-center gap-1.5 text-xs text-yellow-400">
+                <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />
+                <span>API key not set</span>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="p-2 rounded-lg bg-[#1a1a1a] border border-gray-800 hover:text-white text-gray-400"
+              title="Settings"
+              aria-label="Settings"
+            >
+              <SettingsIcon className="w-5 h-5" />
+            </button>
+          </div>
         </header>
 
         <div className="flex gap-4 mb-8">
@@ -511,6 +554,158 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {settingsOpen && (
+        <SettingsModal
+          onClose={() => {
+            setSettingsOpen(false);
+            refreshApiKeyIndicator();
+          }}
+          onChange={refreshApiKeyIndicator}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Settings modal ---------------- */
+
+interface SettingsModalProps {
+  onClose: () => void;
+  onChange: () => void;
+}
+
+function SettingsModal({ onClose, onChange }: SettingsModalProps) {
+  const [value, setValue] = useState<string>(() => {
+    try {
+      return localStorage.getItem("gemini_api_key") || "";
+    } catch {
+      return "";
+    }
+  });
+  const [saved, setSaved] = useState(false);
+
+  const save = () => {
+    try {
+      localStorage.setItem("gemini_api_key", value.trim());
+      setSaved(true);
+      onChange();
+      setTimeout(() => setSaved(false), 1200);
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const clear = () => {
+    try {
+      localStorage.removeItem("gemini_api_key");
+      setValue("");
+      onChange();
+    } catch {
+      /* ignore */
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-md rounded-xl bg-[#1a1a1a] border border-gray-800 p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1 text-gray-400 hover:text-white"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+        <h2 className="text-xl font-semibold mb-4">Settings</h2>
+        <label className="text-sm text-gray-400 mb-1 block">
+          Gemini API Key
+        </label>
+        <input
+          type="password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="AIza..."
+          className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm font-mono"
+        />
+        <p className="mt-2 text-xs text-gray-500">
+          Stored locally in your browser. Never sent to any server except Gemini.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={save}
+            className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium"
+          >
+            {saved ? "Saved" : "Save"}
+          </button>
+          <button
+            type="button"
+            onClick={clear}
+            className="px-3 py-2 bg-[#0f0f0f] border border-gray-800 hover:bg-gray-900 rounded-lg text-sm font-medium text-gray-300"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Emoji popover ---------------- */
+
+interface EmojiPopoverProps {
+  onPick: (emoji: string) => void;
+}
+
+function EmojiPopover({ onPick }: EmojiPopoverProps) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!wrapperRef.current) return;
+      if (!wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  return (
+    <div ref={wrapperRef} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="p-1 text-gray-400 hover:text-white"
+        aria-label="Insert emoji"
+        title="Insert emoji"
+      >
+        <Smile className="w-4 h-4" />
+      </button>
+      {open && (
+        <div className="absolute z-40 mt-1 right-0 shadow-xl">
+          <Picker
+            data={emojiData}
+            theme="dark"
+            previewPosition="none"
+            onEmojiSelect={(e: { native?: string }) => {
+              if (e?.native) {
+                onPick(e.native);
+                setOpen(false);
+              }
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -532,6 +727,9 @@ function InputPanel({
   onImageSearch,
   compact,
 }: InputPanelProps) {
+  const titleRef = useRef<HTMLInputElement>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
+
   return (
     <div
       className={
@@ -542,29 +740,29 @@ function InputPanel({
     >
       {!compact && <h2 className="text-xl font-semibold">Push Details</h2>}
 
-      <div>
-        <label className="text-sm text-gray-400 mb-1 block">
-          Brand URL{" "}
-          <span className="text-gray-500 text-xs">
-            (optional — for image search)
-          </span>
-        </label>
-        <input
-          type="text"
-          value={row.brandUrl}
-          onChange={(e) => onChange({ brandUrl: e.target.value })}
-          placeholder="https://example.com"
-          className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
-        />
-      </div>
-
       <LogoInput row={row} onChange={onChange} />
 
-      <HeroInput row={row} onChange={onChange} onImageSearch={onImageSearch} />
+      <HeroInput
+        row={row}
+        onChange={onChange}
+        onImageSearch={onImageSearch}
+        onBrandUrlChange={(url) => onChange({ brandUrl: url })}
+        brandUrl={row.brandUrl}
+      />
 
       <div>
-        <label className="text-sm text-gray-400 mb-1 block">Push Title</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm text-gray-400">Push Title</label>
+          <EmojiPopover
+            onPick={(emoji) =>
+              onChange({
+                title: insertAtCursor(titleRef.current, row.title, emoji),
+              })
+            }
+          />
+        </div>
         <input
+          ref={titleRef}
           type="text"
           value={row.title}
           onChange={(e) => onChange({ title: e.target.value })}
@@ -575,8 +773,18 @@ function InputPanel({
       </div>
 
       <div>
-        <label className="text-sm text-gray-400 mb-1 block">Push Body</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-sm text-gray-400">Push Body</label>
+          <EmojiPopover
+            onPick={(emoji) =>
+              onChange({
+                body: insertAtCursor(bodyRef.current, row.body, emoji),
+              })
+            }
+          />
+        </div>
         <textarea
+          ref={bodyRef}
           value={row.body}
           onChange={(e) => onChange({ body: e.target.value })}
           placeholder="Fresh styles just hit the shop. Tap to take a look."
@@ -606,8 +814,8 @@ function InputPanel({
         {row.showAiCopy && (
           <div className="px-3 pb-3 space-y-2 border-t border-gray-800 pt-3">
             <p className="text-xs text-gray-500">
-              Use Gemini to draft the title and body from a brand URL. Requires
-              Brand URL above.
+              Use Gemini to draft the title and body from the Brand URL in the
+              Hero Image section above.
             </p>
             <button
               type="button"
@@ -632,159 +840,65 @@ function InputPanel({
   );
 }
 
-/* ---------------- Logo input ---------------- */
-
-interface LogoInputProps {
-  row: InputRow;
-  onChange: (patch: Partial<InputRow>) => void;
-}
-
-function LogoInput({ row, onChange }: LogoInputProps) {
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-sm text-gray-400">Logo</label>
-        <SourceTabs
-          value={row.logoSource}
-          onChange={(s) => onChange({ logoSource: s })}
-          options={["upload", "url"]}
-        />
-      </div>
-
-      {row.logoSource === "upload" ? (
-        <div className="flex items-center gap-2">
-          <input
-            type="file"
-            accept="image/*"
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (file)
-                onChange({ logoDataUrl: await fileToDataUrl(file) });
-            }}
-            className="flex-1 text-xs text-white file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:bg-purple-600 file:text-white hover:file:bg-purple-700 file:cursor-pointer"
-          />
-          {row.logoDataUrl && (
-            <button
-              type="button"
-              onClick={() => onChange({ logoDataUrl: "" })}
-              className="text-xs text-gray-400 hover:text-red-400"
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      ) : (
-        <input
-          type="text"
-          value={row.logoUrl}
-          onChange={(e) => onChange({ logoUrl: e.target.value })}
-          placeholder="https://cdn.example.com/logo.png"
-          className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
-        />
-      )}
-
-      <div className="mt-2 flex items-center gap-3">
-        <label className="text-xs text-gray-400">Icon bg</label>
-        <input
-          type="color"
-          value={row.logoBgColor}
-          onChange={(e) => onChange({ logoBgColor: e.target.value })}
-          className="h-7 w-10 rounded border border-gray-800 bg-[#0f0f0f] cursor-pointer"
-          title="Icon background color"
-        />
-        <input
-          type="text"
-          value={row.logoBgColor}
-          onChange={(e) => onChange({ logoBgColor: e.target.value })}
-          className="flex-1 px-2 py-1 bg-[#0f0f0f] border border-gray-800 rounded text-xs font-mono text-white"
-        />
-      </div>
-
-      {currentLogoSrc(row) && (
-        <>
-          <div className="mt-2 flex items-center gap-3">
-            <div
-              className="h-16 w-16 rounded border border-gray-800 overflow-hidden flex items-center justify-center"
-              style={{ backgroundColor: row.logoBgColor }}
-            >
-              <img
-                src={currentLogoSrc(row)}
-                alt="Logo preview"
-                className="h-full w-full object-contain"
-                style={{
-                  transform: `translate(${row.logoTransform.offsetX}px, ${row.logoTransform.offsetY}px) scale(${row.logoTransform.scale})`,
-                  transformOrigin: "center center",
-                }}
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.opacity = "0.3";
-                }}
-              />
-            </div>
-            <div className="flex-1">
-              <TransformControls
-                transform={row.logoTransform}
-                onChange={(t) => onChange({ logoTransform: t })}
-              />
-            </div>
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
-/* ---------------- Hero input ---------------- */
+/* ---------------- Hero input (with Brand URL + Search) ---------------- */
 
 interface HeroInputProps {
   row: InputRow;
   onChange: (patch: Partial<InputRow>) => void;
   onImageSearch: () => void;
+  brandUrl: string;
+  onBrandUrlChange: (url: string) => void;
 }
 
-function HeroInput({ row, onChange, onImageSearch }: HeroInputProps) {
-  const canSearch = !!row.brandUrl.trim();
-  const options: ImageSource[] = canSearch
-    ? ["upload", "url", "search"]
-    : ["upload", "url"];
+function HeroInput({
+  row,
+  onChange,
+  onImageSearch,
+  brandUrl,
+  onBrandUrlChange,
+}: HeroInputProps) {
+  const heroFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleHeroFile = async (file: File | undefined) => {
+    if (!file) return;
+    const dataUrl = await fileToDataUrl(file);
+    onChange({ heroDataUrl: dataUrl, heroSource: "upload" });
+  };
+
+  const heroSrc = currentHeroSrc(row);
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-sm text-gray-400">Hero / Push Image</label>
-        <SourceTabs
-          value={row.heroSource}
-          onChange={(s) => onChange({ heroSource: s })}
-          options={options}
-        />
-      </div>
+    <div className="space-y-2">
+      <label className="text-sm text-gray-400 block">Hero Image</label>
+
+      <SourceTabs
+        value={row.heroSource}
+        onChange={(src) => onChange({ heroSource: src })}
+        showSearch
+      />
 
       {row.heroSource === "upload" && (
-        <div className="flex items-center gap-2">
+        <div>
           <input
+            ref={heroFileInputRef}
             type="file"
             accept="image/*"
-            onChange={async (e) => {
-              const file = e.target.files?.[0];
-              if (file)
-                onChange({ heroDataUrl: await fileToDataUrl(file) });
-            }}
-            className="flex-1 text-xs text-white file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:bg-purple-600 file:text-white hover:file:bg-purple-700 file:cursor-pointer"
+            className="hidden"
+            onChange={(e) => handleHeroFile(e.target.files?.[0])}
           />
-          {row.heroDataUrl && (
-            <button
-              type="button"
-              onClick={() => onChange({ heroDataUrl: "" })}
-              className="text-xs text-gray-400 hover:text-red-400"
-            >
-              Clear
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => heroFileInputRef.current?.click()}
+            className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-900"
+          >
+            {row.heroDataUrl ? "Change image" : "Upload image"}
+          </button>
         </div>
       )}
 
       {row.heroSource === "url" && (
         <input
-          type="text"
+          type="url"
           value={row.heroUrl}
           onChange={(e) => onChange({ heroUrl: e.target.value })}
           placeholder="https://cdn.example.com/hero.jpg"
@@ -794,10 +908,22 @@ function HeroInput({ row, onChange, onImageSearch }: HeroInputProps) {
 
       {row.heroSource === "search" && (
         <div className="space-y-2">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">
+              Brand URL
+            </label>
+            <input
+              type="url"
+              value={brandUrl}
+              onChange={(e) => onBrandUrlChange(e.target.value)}
+              placeholder="https://yourbrand.com"
+              className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
+            />
+          </div>
           <button
             type="button"
             onClick={onImageSearch}
-            disabled={row.searching || !canSearch}
+            disabled={row.searching || !brandUrl.trim()}
             className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5"
           >
             {row.searching ? (
@@ -805,34 +931,37 @@ function HeroInput({ row, onChange, onImageSearch }: HeroInputProps) {
             ) : (
               <Search className="w-4 h-4" />
             )}
-            Search Product Images
+            Search product images
           </button>
           {row.searchError && (
             <p className="text-xs text-red-400">{row.searchError}</p>
           )}
           {row.searchResults.length > 0 && (
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto p-1 border border-gray-800 rounded-lg">
               {row.searchResults.map((url) => {
                 const selected = row.heroUrl === url;
                 return (
                   <button
                     key={url}
                     type="button"
-                    onClick={() => onChange({ heroUrl: url })}
+                    onClick={() =>
+                      onChange({
+                        heroUrl: url,
+                        heroTransform: { ...DEFAULT_TRANSFORM },
+                      })
+                    }
                     className={`relative aspect-square rounded overflow-hidden border-2 ${
                       selected
                         ? "border-purple-500"
-                        : "border-gray-800 hover:border-gray-600"
+                        : "border-transparent hover:border-gray-600"
                     }`}
                   >
                     <img
                       src={url}
-                      alt="Product"
-                      crossOrigin="anonymous"
+                      alt=""
                       className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.opacity = "0.3";
-                      }}
+                      crossOrigin="anonymous"
+                      loading="lazy"
                     />
                   </button>
                 );
@@ -842,135 +971,263 @@ function HeroInput({ row, onChange, onImageSearch }: HeroInputProps) {
         </div>
       )}
 
-      {currentHeroSrc(row) && (
-        <div className="mt-2 flex items-start gap-3">
-          <div className="h-20 w-32 rounded border border-gray-800 overflow-hidden bg-[#0f0f0f]">
-            <img
-              src={currentHeroSrc(row)}
-              alt="Hero preview"
-              className="w-full h-full object-cover"
-              style={{
-                transform: `translate(${row.heroTransform.offsetX}px, ${row.heroTransform.offsetY}px) scale(${row.heroTransform.scale})`,
-                transformOrigin: "center center",
-              }}
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.opacity = "0.3";
-              }}
-            />
-          </div>
-          <div className="flex-1">
-            <TransformControls
-              transform={row.heroTransform}
-              onChange={(t) => onChange({ heroTransform: t })}
-            />
-          </div>
-        </div>
+      {heroSrc && (
+        <>
+          <HeroThumb src={heroSrc} transform={row.heroTransform} />
+          <TransformControls
+            label="Hero"
+            transform={row.heroTransform}
+            onChange={(t) => onChange({ heroTransform: t })}
+          />
+        </>
       )}
     </div>
   );
 }
 
-/* ---------------- Shared helpers ---------------- */
+function HeroThumb({
+  src,
+  transform,
+}: {
+  src: string;
+  transform: ImageTransform;
+}) {
+  return (
+    <div className="w-full aspect-[375/270] overflow-hidden rounded-lg bg-gray-900 border border-gray-800">
+      <img
+        src={src}
+        alt="hero preview"
+        crossOrigin="anonymous"
+        className="w-full h-full object-cover"
+        style={{
+          objectPosition: `${transform.offsetX}% ${transform.offsetY}%`,
+          transform: `scale(${transform.scale})`,
+          transformOrigin: `${transform.offsetX}% ${transform.offsetY}%`,
+        }}
+      />
+    </div>
+  );
+}
+
+/* ---------------- Logo input ---------------- */
+
+interface LogoInputProps {
+  row: InputRow;
+  onChange: (patch: Partial<InputRow>) => void;
+}
+
+function LogoInput({ row, onChange }: LogoInputProps) {
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoFile = async (file: File | undefined) => {
+    if (!file) return;
+    const dataUrl = await fileToDataUrl(file);
+    onChange({ logoDataUrl: dataUrl, logoSource: "upload" });
+  };
+
+  const logoSrc = currentLogoSrc(row);
+
+  return (
+    <div className="space-y-2">
+      <label className="text-sm text-gray-400 block">Brand Logo</label>
+
+      <SourceTabs
+        value={row.logoSource}
+        onChange={(src) => onChange({ logoSource: src })}
+      />
+
+      {row.logoSource === "upload" ? (
+        <div>
+          <input
+            ref={logoFileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleLogoFile(e.target.files?.[0])}
+          />
+          <button
+            type="button"
+            onClick={() => logoFileInputRef.current?.click()}
+            className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg text-sm text-gray-300 hover:bg-gray-900"
+          >
+            {row.logoDataUrl ? "Change logo" : "Upload logo"}
+          </button>
+        </div>
+      ) : (
+        <input
+          type="url"
+          value={row.logoUrl}
+          onChange={(e) => onChange({ logoUrl: e.target.value })}
+          placeholder="https://cdn.example.com/logo.png"
+          className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
+        />
+      )}
+
+      {logoSrc && (
+        <div className="flex items-center gap-3">
+          <div
+            className="w-12 h-12 rounded-lg overflow-hidden border border-gray-800 shrink-0"
+            style={{ backgroundColor: row.logoBgColor }}
+          >
+            <img
+              src={logoSrc}
+              alt="logo preview"
+              crossOrigin="anonymous"
+              className="w-full h-full object-cover"
+              style={{
+                objectPosition: `${row.logoTransform.offsetX}% ${row.logoTransform.offsetY}%`,
+                transform: `scale(${row.logoTransform.scale})`,
+                transformOrigin: `${row.logoTransform.offsetX}% ${row.logoTransform.offsetY}%`,
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-400">Bg</label>
+            <input
+              type="color"
+              value={row.logoBgColor}
+              onChange={(e) => onChange({ logoBgColor: e.target.value })}
+              className="w-8 h-8 rounded cursor-pointer bg-transparent border border-gray-800"
+            />
+          </div>
+        </div>
+      )}
+
+      {logoSrc && (
+        <TransformControls
+          label="Logo"
+          transform={row.logoTransform}
+          onChange={(t) => onChange({ logoTransform: t })}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Source tabs ---------------- */
 
 interface SourceTabsProps {
   value: ImageSource;
-  onChange: (s: ImageSource) => void;
-  options: ImageSource[];
+  onChange: (src: ImageSource) => void;
+  showSearch?: boolean;
 }
 
-function SourceTabs({ value, onChange, options }: SourceTabsProps) {
-  const labels: Record<ImageSource, string> = {
-    upload: "Upload",
-    url: "URL",
-    search: "Search",
-  };
+function SourceTabs({ value, onChange, showSearch }: SourceTabsProps) {
+  const tabs: { id: ImageSource; label: string }[] = [
+    { id: "upload", label: "Upload" },
+    { id: "url", label: "URL" },
+  ];
+  if (showSearch) tabs.push({ id: "search", label: "Search" });
+
   return (
-    <div className="inline-flex rounded-md bg-[#0f0f0f] border border-gray-800 overflow-hidden">
-      {options.map((opt) => (
+    <div className="flex gap-1 p-1 bg-[#0f0f0f] border border-gray-800 rounded-lg">
+      {tabs.map((t) => (
         <button
-          key={opt}
+          key={t.id}
           type="button"
-          onClick={() => onChange(opt)}
-          className={`px-2 py-0.5 text-[11px] font-medium transition-colors ${
-            value === opt
+          onClick={() => onChange(t.id)}
+          className={`flex-1 px-2 py-1 rounded text-xs font-medium ${
+            value === t.id
               ? "bg-purple-600 text-white"
               : "text-gray-400 hover:text-white"
           }`}
         >
-          {labels[opt]}
+          {t.label}
         </button>
       ))}
     </div>
   );
 }
 
+/* ---------------- Transform controls ---------------- */
+
 interface TransformControlsProps {
+  label: string;
   transform: ImageTransform;
   onChange: (t: ImageTransform) => void;
 }
 
-function TransformControls({ transform, onChange }: TransformControlsProps) {
+function TransformControls({
+  label,
+  transform,
+  onChange,
+}: TransformControlsProps) {
   const reset = () => onChange({ ...DEFAULT_TRANSFORM });
+
   return (
-    <div className="space-y-1.5">
-      <div className="flex items-center gap-2">
-        <label className="text-[11px] text-gray-400 w-10">Zoom</label>
-        <input
-          type="range"
-          min={50}
-          max={200}
-          step={1}
-          value={Math.round(transform.scale * 100)}
-          onChange={(e) =>
-            onChange({ ...transform, scale: Number(e.target.value) / 100 })
-          }
-          className="flex-1 accent-purple-500"
-        />
-        <span className="text-[11px] text-gray-400 w-10 text-right">
-          {Math.round(transform.scale * 100)}%
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        <label className="text-[11px] text-gray-400 w-10">X</label>
-        <input
-          type="range"
-          min={-80}
-          max={80}
-          step={1}
+    <details className="border border-gray-800 rounded-lg">
+      <summary className="cursor-pointer px-3 py-2 text-xs text-gray-400 select-none">
+        {label} image position & zoom
+      </summary>
+      <div className="p-3 space-y-2">
+        <Slider
+          label="Pan X"
+          min={0}
+          max={100}
           value={transform.offsetX}
-          onChange={(e) =>
-            onChange({ ...transform, offsetX: Number(e.target.value) })
-          }
-          className="flex-1 accent-purple-500"
+          onChange={(v) => onChange({ ...transform, offsetX: v })}
+          suffix="%"
         />
-        <span className="text-[11px] text-gray-400 w-10 text-right">
-          {transform.offsetX}
-        </span>
-      </div>
-      <div className="flex items-center gap-2">
-        <label className="text-[11px] text-gray-400 w-10">Y</label>
-        <input
-          type="range"
-          min={-80}
-          max={80}
-          step={1}
+        <Slider
+          label="Pan Y"
+          min={0}
+          max={100}
           value={transform.offsetY}
-          onChange={(e) =>
-            onChange({ ...transform, offsetY: Number(e.target.value) })
-          }
-          className="flex-1 accent-purple-500"
+          onChange={(v) => onChange({ ...transform, offsetY: v })}
+          suffix="%"
         />
-        <span className="text-[11px] text-gray-400 w-10 text-right">
-          {transform.offsetY}
+        <Slider
+          label="Zoom"
+          min={100}
+          max={300}
+          value={Math.round(transform.scale * 100)}
+          onChange={(v) => onChange({ ...transform, scale: v / 100 })}
+          suffix="%"
+        />
+        <button
+          type="button"
+          onClick={reset}
+          className="text-xs text-gray-500 hover:text-white"
+        >
+          Reset
+        </button>
+      </div>
+    </details>
+  );
+}
+
+function Slider({
+  label,
+  min,
+  max,
+  value,
+  onChange,
+  suffix,
+}: {
+  label: string;
+  min: number;
+  max: number;
+  value: number;
+  onChange: (v: number) => void;
+  suffix?: string;
+}) {
+  return (
+    <label className="block">
+      <div className="flex items-center justify-between text-xs text-gray-400 mb-0.5">
+        <span>{label}</span>
+        <span>
+          {value}
+          {suffix ?? ""}
         </span>
       </div>
-      <button
-        type="button"
-        onClick={reset}
-        className="text-[11px] text-gray-500 hover:text-white"
-      >
-        Reset
-      </button>
-    </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-purple-600"
+      />
+    </label>
   );
 }
