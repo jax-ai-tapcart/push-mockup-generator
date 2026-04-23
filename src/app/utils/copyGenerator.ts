@@ -1,5 +1,6 @@
 export const GEMINI_COPY_MODEL = "gemini-2.5-flash";
 export const GEMINI_SEARCH_MODEL = "gemini-2.5-flash";
+const GEMINI_FALLBACK_MODEL = "gemini-2.5-pro";
 
 /**
  * Read the Gemini API key. Prefers a user-provided key from localStorage,
@@ -17,6 +18,27 @@ export function getGeminiApiKey(): string {
   }
   const fromEnv = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
   return fromEnv || "";
+}
+
+async function fetchWithFallback(
+  primaryModel: string,
+  buildRequest: (model: string) => { url: string; body: object }
+): Promise<Response> {
+  const primary = buildRequest(primaryModel);
+  const res = await fetch(primary.url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(primary.body),
+  });
+  if (res.status === 503) {
+    const fallback = buildRequest(GEMINI_FALLBACK_MODEL);
+    return fetch(fallback.url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(fallback.body),
+    });
+  }
+  return res;
 }
 
 export interface BrandResearchResult {
@@ -53,17 +75,15 @@ Respond with JSON only, no markdown, no code fences:
   "body": "Push notification body, max 100 chars, specific to the brand"
 }`;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_COPY_MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { responseMimeType: "application/json" },
-      }),
-    }
-  );
+  const buildRequest = (model: string) => ({
+    url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    body: {
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json" },
+    },
+  });
+
+  const response = await fetchWithFallback(GEMINI_COPY_MODEL, buildRequest);
 
   if (!response.ok) {
     throw new Error(`Gemini API error: ${response.status}`);
@@ -107,18 +127,16 @@ export async function searchProductImages(
   const brandName = brandNameFromUrl(cleanUrl);
   const prompt = `Search ${brandName} (${domain}) for recent lifestyle or campaign photography suitable for a mobile push notification. I'm looking for images that: show real people wearing or using the product in real-world or styled editorial settings (outdoors, at home, at an event, etc.), have strong visual energy with bold colors or dramatic lighting, feel authentic or campaign-quality rather than clinical, and where the product is visible but the overall mood and lifestyle context is the hero. Avoid: white-background studio shots, flat lay product photos, logo graphics, packaging-only images, or anything that looks like a product listing. Prioritize images from the last 6-12 months. The image should feel punchy and grab attention at small thumbnail sizes on a phone screen. Return ONLY a JSON array of up to ${limit} direct image URLs (jpg/png/webp) that are publicly accessible. No explanations, just the JSON array.`;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_SEARCH_MODEL}:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ googleSearch: {} }],
-        generationConfig: { temperature: 1 },
-      }),
-    }
-  );
+  const buildRequest = (model: string) => ({
+    url: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+    body: {
+      contents: [{ parts: [{ text: prompt }] }],
+      tools: [{ googleSearch: {} }],
+      generationConfig: { temperature: 1 },
+    },
+  });
+
+  const response = await fetchWithFallback(GEMINI_SEARCH_MODEL, buildRequest);
 
   if (!response.ok) {
     const errBody = await response.text().catch(() => "");
