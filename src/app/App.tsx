@@ -7,16 +7,24 @@ import {
   Sparkles,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Trash2,
   Plus,
+  Search,
 } from "lucide-react";
 import {
   NotificationCard,
   type NotificationCardData,
+  type ImageTransform,
+  DEFAULT_TRANSFORM,
 } from "./components/NotificationCard";
-import { researchBrand, brandNameFromUrl } from "./utils/copyGenerator";
+import {
+  researchBrand,
+  brandNameFromUrl,
+  searchProductImages,
+} from "./utils/copyGenerator";
 
-type ImageSource = "upload" | "url";
+type ImageSource = "upload" | "url" | "search";
 
 interface InputRow {
   id: string;
@@ -24,14 +32,21 @@ interface InputRow {
   logoSource: ImageSource;
   logoUrl: string;
   logoDataUrl: string;
+  logoBgColor: string;
+  logoTransform: ImageTransform;
   heroSource: ImageSource;
   heroUrl: string;
   heroDataUrl: string;
+  heroTransform: ImageTransform;
   title: string;
   body: string;
   researching: boolean;
   researchError: string;
   brandNameOverride: string;
+  searchResults: string[];
+  searching: boolean;
+  searchError: string;
+  showAiCopy: boolean;
 }
 
 function makeId() {
@@ -45,43 +60,59 @@ function emptyRow(): InputRow {
     logoSource: "upload",
     logoUrl: "",
     logoDataUrl: "",
+    logoBgColor: "#FFFFFF",
+    logoTransform: { ...DEFAULT_TRANSFORM },
     heroSource: "upload",
     heroUrl: "",
     heroDataUrl: "",
+    heroTransform: { ...DEFAULT_TRANSFORM },
     title: "",
     body: "",
     researching: false,
     researchError: "",
     brandNameOverride: "",
+    searchResults: [],
+    searching: false,
+    searchError: "",
+    showAiCopy: false,
   };
 }
 
 function resolveBrandName(row: InputRow): string {
   if (row.brandNameOverride.trim()) return row.brandNameOverride.trim();
   if (row.brandUrl.trim()) return brandNameFromUrl(row.brandUrl.trim());
+  if (row.title.trim()) return row.title.trim().slice(0, 40);
   return "Brand";
 }
 
+function currentLogoSrc(row: InputRow): string {
+  if (row.logoSource === "upload") return row.logoDataUrl;
+  return row.logoUrl;
+}
+
+function currentHeroSrc(row: InputRow): string {
+  if (row.heroSource === "upload") return row.heroDataUrl;
+  return row.heroUrl;
+}
+
 function rowToCard(row: InputRow): NotificationCardData {
-  const logo = row.logoSource === "upload" ? row.logoDataUrl : row.logoUrl;
-  const hero = row.heroSource === "upload" ? row.heroDataUrl : row.heroUrl;
   return {
     brandName: resolveBrandName(row),
-    logoUrl: logo,
-    iconBgColor: "#FFFFFF",
+    logoUrl: currentLogoSrc(row),
+    iconBgColor: row.logoBgColor,
     title: row.title || "Your push title",
     body: row.body || "Your push body copy appears here.",
-    heroImageUrl: hero,
+    heroImageUrl: currentHeroSrc(row),
+    logoTransform: row.logoTransform,
+    heroTransform: row.heroTransform,
   };
 }
 
 function rowIsReady(row: InputRow): boolean {
-  const hasLogo =
-    row.logoSource === "upload" ? !!row.logoDataUrl : !!row.logoUrl.trim();
-  const hasHero =
-    row.heroSource === "upload" ? !!row.heroDataUrl : !!row.heroUrl.trim();
+  const hasLogo = !!currentLogoSrc(row).trim();
+  const hasHero = !!currentHeroSrc(row).trim();
   const hasCopy = !!row.title.trim() && !!row.body.trim();
-  return hasLogo && hasHero && hasCopy && !!row.brandUrl.trim();
+  return hasLogo && hasHero && hasCopy;
 }
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -160,6 +191,31 @@ export default function App() {
     }
   };
 
+  const runImageSearch = async (
+    row: InputRow,
+    apply: (patch: Partial<InputRow>) => void
+  ) => {
+    const url = row.brandUrl.trim();
+    if (!url) {
+      apply({ searchError: "Enter a brand URL first" });
+      return;
+    }
+    apply({ searching: true, searchError: "", searchResults: [] });
+    try {
+      const urls = await searchProductImages(url, 10);
+      apply({
+        searching: false,
+        searchResults: urls,
+        heroSource: "search",
+      });
+    } catch (e) {
+      apply({
+        searching: false,
+        searchError: e instanceof Error ? e.message : "Image search failed",
+      });
+    }
+  };
+
   const renderCard = async (
     node: HTMLDivElement | null
   ): Promise<Blob | null> => {
@@ -187,9 +243,7 @@ export default function App() {
   const handleExportSingle = async () => {
     setError("");
     if (!rowIsReady(singleRow)) {
-      setError(
-        "Fill in brand URL, logo, hero image, title, and body before exporting."
-      );
+      setError("Fill in logo, hero image, title, and body before exporting.");
       return;
     }
     try {
@@ -208,9 +262,7 @@ export default function App() {
   const handleExportBulkCurrent = async () => {
     setError("");
     if (!activeBulkRow || !rowIsReady(activeBulkRow)) {
-      setError(
-        "This row is missing a brand URL, logo, hero image, title, or body."
-      );
+      setError("This row is missing a logo, hero image, title, or body.");
       return;
     }
     try {
@@ -263,6 +315,7 @@ export default function App() {
     [activeBulkRow]
   );
 
+
   return (
     <div className="min-h-screen bg-[#0f0f0f] text-white p-8">
       <div className="max-w-7xl mx-auto">
@@ -310,6 +363,7 @@ export default function App() {
               row={singleRow}
               onChange={updateSingle}
               onResearch={() => runResearch(singleRow, updateSingle)}
+              onImageSearch={() => runImageSearch(singleRow, updateSingle)}
             />
             <div className="space-y-6">
               <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
@@ -380,6 +434,11 @@ export default function App() {
                           updateBulkRow(row.id, patch)
                         )
                       }
+                      onImageSearch={() =>
+                        runImageSearch(row, (patch) =>
+                          updateBulkRow(row.id, patch)
+                        )
+                      }
                     />
                   </div>
                 ))}
@@ -407,10 +466,7 @@ export default function App() {
                       <button
                         onClick={() =>
                           setBulkPreviewIndex(
-                            Math.min(
-                              bulkRows.length - 1,
-                              bulkPreviewIndex + 1
-                            )
+                            Math.min(bulkRows.length - 1, bulkPreviewIndex + 1)
                           )
                         }
                         disabled={bulkPreviewIndex >= bulkRows.length - 1}
@@ -465,10 +521,17 @@ interface InputPanelProps {
   row: InputRow;
   onChange: (patch: Partial<InputRow>) => void;
   onResearch: () => void;
+  onImageSearch: () => void;
   compact?: boolean;
 }
 
-function InputPanel({ row, onChange, onResearch, compact }: InputPanelProps) {
+function InputPanel({
+  row,
+  onChange,
+  onResearch,
+  onImageSearch,
+  compact,
+}: InputPanelProps) {
   return (
     <div
       className={
@@ -480,55 +543,24 @@ function InputPanel({ row, onChange, onResearch, compact }: InputPanelProps) {
       {!compact && <h2 className="text-xl font-semibold">Push Details</h2>}
 
       <div>
-        <label className="text-sm text-gray-400 mb-1 block">Brand URL</label>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={row.brandUrl}
-            onChange={(e) => onChange({ brandUrl: e.target.value })}
-            placeholder="https://example.com"
-            className="flex-1 px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
-          />
-          <button
-            onClick={onResearch}
-            disabled={row.researching || !row.brandUrl.trim()}
-            className="px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-sm font-medium flex items-center gap-1.5 whitespace-nowrap"
-            title="Use Gemini to research the brand and draft copy"
-          >
-            {row.researching ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Sparkles className="w-4 h-4" />
-            )}
-            Research
-          </button>
-        </div>
-        {row.researchError && (
-          <p className="mt-1 text-xs text-red-400">{row.researchError}</p>
-        )}
+        <label className="text-sm text-gray-400 mb-1 block">
+          Brand URL{" "}
+          <span className="text-gray-500 text-xs">
+            (optional — for image search)
+          </span>
+        </label>
+        <input
+          type="text"
+          value={row.brandUrl}
+          onChange={(e) => onChange({ brandUrl: e.target.value })}
+          placeholder="https://example.com"
+          className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
+        />
       </div>
 
-      <ImageInput
-        label="Logo"
-        source={row.logoSource}
-        url={row.logoUrl}
-        dataUrl={row.logoDataUrl}
-        onSourceChange={(s) => onChange({ logoSource: s })}
-        onUrlChange={(v) => onChange({ logoUrl: v })}
-        onFile={async (file) => onChange({ logoDataUrl: await fileToDataUrl(file) })}
-        onClearFile={() => onChange({ logoDataUrl: "" })}
-      />
+      <LogoInput row={row} onChange={onChange} />
 
-      <ImageInput
-        label="Hero / Push Image"
-        source={row.heroSource}
-        url={row.heroUrl}
-        dataUrl={row.heroDataUrl}
-        onSourceChange={(s) => onChange({ heroSource: s })}
-        onUrlChange={(v) => onChange({ heroUrl: v })}
-        onFile={async (file) => onChange({ heroDataUrl: await fileToDataUrl(file) })}
-        onClearFile={() => onChange({ heroDataUrl: "" })}
-      />
+      <HeroInput row={row} onChange={onChange} onImageSearch={onImageSearch} />
 
       <div>
         <label className="text-sm text-gray-400 mb-1 block">Push Title</label>
@@ -553,79 +585,88 @@ function InputPanel({ row, onChange, onResearch, compact }: InputPanelProps) {
           className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
         />
       </div>
+
+      {/* AI Copy Assist — collapsible, secondary */}
+      <div className="border border-gray-800 rounded-lg">
+        <button
+          type="button"
+          onClick={() => onChange({ showAiCopy: !row.showAiCopy })}
+          className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-400 hover:text-white"
+        >
+          <span className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            AI Copy Assist (optional)
+          </span>
+          <ChevronDown
+            className={`w-4 h-4 transition-transform ${
+              row.showAiCopy ? "rotate-180" : ""
+            }`}
+          />
+        </button>
+        {row.showAiCopy && (
+          <div className="px-3 pb-3 space-y-2 border-t border-gray-800 pt-3">
+            <p className="text-xs text-gray-500">
+              Use Gemini to draft the title and body from a brand URL. Requires
+              Brand URL above.
+            </p>
+            <button
+              type="button"
+              onClick={onResearch}
+              disabled={row.researching || !row.brandUrl.trim()}
+              className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5"
+            >
+              {row.researching ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4" />
+              )}
+              Draft copy from brand URL
+            </button>
+            {row.researchError && (
+              <p className="text-xs text-red-400">{row.researchError}</p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-/* ---------------- Image input (upload | URL) ---------------- */
+/* ---------------- Logo input ---------------- */
 
-interface ImageInputProps {
-  label: string;
-  source: ImageSource;
-  url: string;
-  dataUrl: string;
-  onSourceChange: (s: ImageSource) => void;
-  onUrlChange: (v: string) => void;
-  onFile: (file: File) => void | Promise<void>;
-  onClearFile: () => void;
+interface LogoInputProps {
+  row: InputRow;
+  onChange: (patch: Partial<InputRow>) => void;
 }
 
-function ImageInput({
-  label,
-  source,
-  url,
-  dataUrl,
-  onSourceChange,
-  onUrlChange,
-  onFile,
-  onClearFile,
-}: ImageInputProps) {
-  const previewSrc = source === "upload" ? dataUrl : url;
+function LogoInput({ row, onChange }: LogoInputProps) {
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label className="text-sm text-gray-400">{label}</label>
-        <div className="flex bg-[#0f0f0f] border border-gray-800 rounded-md overflow-hidden text-xs">
-          <button
-            type="button"
-            onClick={() => onSourceChange("upload")}
-            className={`px-2 py-1 ${
-              source === "upload"
-                ? "bg-purple-600 text-white"
-                : "text-gray-400 hover:text-white"
-            }`}
-          >
-            Upload File
-          </button>
-          <button
-            type="button"
-            onClick={() => onSourceChange("url")}
-            className={`px-2 py-1 ${
-              source === "url"
-                ? "bg-purple-600 text-white"
-                : "text-gray-400 hover:text-white"
-            }`}
-          >
-            Paste URL
-          </button>
-        </div>
+        <label className="text-sm text-gray-400">Logo</label>
+        <SourceTabs
+          value={row.logoSource}
+          onChange={(s) => onChange({ logoSource: s })}
+          options={["upload", "url"]}
+        />
       </div>
 
-      {source === "upload" ? (
+      {row.logoSource === "upload" ? (
         <div className="flex items-center gap-2">
           <input
             type="file"
             accept="image/*"
-            onChange={(e) => {
+            onChange={async (e) => {
               const file = e.target.files?.[0];
-              if (file) onFile(file);
+              if (file)
+                onChange({ logoDataUrl: await fileToDataUrl(file) });
             }}
             className="flex-1 text-xs text-white file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:bg-purple-600 file:text-white hover:file:bg-purple-700 file:cursor-pointer"
           />
-          {dataUrl && (
+          {row.logoDataUrl && (
             <button
               type="button"
-              onClick={onClearFile}
+              onClick={() => onChange({ logoDataUrl: "" })}
               className="text-xs text-gray-400 hover:text-red-400"
             >
               Clear
@@ -635,26 +676,301 @@ function ImageInput({
       ) : (
         <input
           type="text"
-          value={url}
-          onChange={(e) => onUrlChange(e.target.value)}
-          placeholder="https://cdn.example.com/image.jpg"
+          value={row.logoUrl}
+          onChange={(e) => onChange({ logoUrl: e.target.value })}
+          placeholder="https://cdn.example.com/logo.png"
           className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
         />
       )}
 
-      {previewSrc && (
-        <div className="mt-2">
-          <img
-            src={previewSrc}
-            alt={`${label} preview`}
-            className="h-16 w-auto rounded border border-gray-800 bg-[#0f0f0f] object-contain"
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              target.style.opacity = "0.3";
+      <div className="mt-2 flex items-center gap-3">
+        <label className="text-xs text-gray-400">Icon bg</label>
+        <input
+          type="color"
+          value={row.logoBgColor}
+          onChange={(e) => onChange({ logoBgColor: e.target.value })}
+          className="h-7 w-10 rounded border border-gray-800 bg-[#0f0f0f] cursor-pointer"
+          title="Icon background color"
+        />
+        <input
+          type="text"
+          value={row.logoBgColor}
+          onChange={(e) => onChange({ logoBgColor: e.target.value })}
+          className="flex-1 px-2 py-1 bg-[#0f0f0f] border border-gray-800 rounded text-xs font-mono text-white"
+        />
+      </div>
+
+      {currentLogoSrc(row) && (
+        <>
+          <div className="mt-2 flex items-center gap-3">
+            <div
+              className="h-16 w-16 rounded border border-gray-800 overflow-hidden flex items-center justify-center"
+              style={{ backgroundColor: row.logoBgColor }}
+            >
+              <img
+                src={currentLogoSrc(row)}
+                alt="Logo preview"
+                className="h-full w-full object-contain"
+                style={{
+                  transform: `translate(${row.logoTransform.offsetX}px, ${row.logoTransform.offsetY}px) scale(${row.logoTransform.scale})`,
+                  transformOrigin: "center center",
+                }}
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.opacity = "0.3";
+                }}
+              />
+            </div>
+            <div className="flex-1">
+              <TransformControls
+                transform={row.logoTransform}
+                onChange={(t) => onChange({ logoTransform: t })}
+              />
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Hero input ---------------- */
+
+interface HeroInputProps {
+  row: InputRow;
+  onChange: (patch: Partial<InputRow>) => void;
+  onImageSearch: () => void;
+}
+
+function HeroInput({ row, onChange, onImageSearch }: HeroInputProps) {
+  const canSearch = !!row.brandUrl.trim();
+  const options: ImageSource[] = canSearch
+    ? ["upload", "url", "search"]
+    : ["upload", "url"];
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-sm text-gray-400">Hero / Push Image</label>
+        <SourceTabs
+          value={row.heroSource}
+          onChange={(s) => onChange({ heroSource: s })}
+          options={options}
+        />
+      </div>
+
+      {row.heroSource === "upload" && (
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            accept="image/*"
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (file)
+                onChange({ heroDataUrl: await fileToDataUrl(file) });
             }}
+            className="flex-1 text-xs text-white file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:bg-purple-600 file:text-white hover:file:bg-purple-700 file:cursor-pointer"
           />
+          {row.heroDataUrl && (
+            <button
+              type="button"
+              onClick={() => onChange({ heroDataUrl: "" })}
+              className="text-xs text-gray-400 hover:text-red-400"
+            >
+              Clear
+            </button>
+          )}
         </div>
       )}
+
+      {row.heroSource === "url" && (
+        <input
+          type="text"
+          value={row.heroUrl}
+          onChange={(e) => onChange({ heroUrl: e.target.value })}
+          placeholder="https://cdn.example.com/hero.jpg"
+          className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
+        />
+      )}
+
+      {row.heroSource === "search" && (
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={onImageSearch}
+            disabled={row.searching || !canSearch}
+            className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5"
+          >
+            {row.searching ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Search className="w-4 h-4" />
+            )}
+            Search Product Images
+          </button>
+          {row.searchError && (
+            <p className="text-xs text-red-400">{row.searchError}</p>
+          )}
+          {row.searchResults.length > 0 && (
+            <div className="grid grid-cols-4 gap-2">
+              {row.searchResults.map((url) => {
+                const selected = row.heroUrl === url;
+                return (
+                  <button
+                    key={url}
+                    type="button"
+                    onClick={() => onChange({ heroUrl: url })}
+                    className={`relative aspect-square rounded overflow-hidden border-2 ${
+                      selected
+                        ? "border-purple-500"
+                        : "border-gray-800 hover:border-gray-600"
+                    }`}
+                  >
+                    <img
+                      src={url}
+                      alt="Product"
+                      crossOrigin="anonymous"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.opacity = "0.3";
+                      }}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {currentHeroSrc(row) && (
+        <div className="mt-2 flex items-start gap-3">
+          <div className="h-20 w-32 rounded border border-gray-800 overflow-hidden bg-[#0f0f0f]">
+            <img
+              src={currentHeroSrc(row)}
+              alt="Hero preview"
+              className="w-full h-full object-cover"
+              style={{
+                transform: `translate(${row.heroTransform.offsetX}px, ${row.heroTransform.offsetY}px) scale(${row.heroTransform.scale})`,
+                transformOrigin: "center center",
+              }}
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.opacity = "0.3";
+              }}
+            />
+          </div>
+          <div className="flex-1">
+            <TransformControls
+              transform={row.heroTransform}
+              onChange={(t) => onChange({ heroTransform: t })}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Shared helpers ---------------- */
+
+interface SourceTabsProps {
+  value: ImageSource;
+  onChange: (s: ImageSource) => void;
+  options: ImageSource[];
+}
+
+function SourceTabs({ value, onChange, options }: SourceTabsProps) {
+  const labels: Record<ImageSource, string> = {
+    upload: "Upload",
+    url: "URL",
+    search: "Search",
+  };
+  return (
+    <div className="inline-flex rounded-md bg-[#0f0f0f] border border-gray-800 overflow-hidden">
+      {options.map((opt) => (
+        <button
+          key={opt}
+          type="button"
+          onClick={() => onChange(opt)}
+          className={`px-2 py-0.5 text-[11px] font-medium transition-colors ${
+            value === opt
+              ? "bg-purple-600 text-white"
+              : "text-gray-400 hover:text-white"
+          }`}
+        >
+          {labels[opt]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+interface TransformControlsProps {
+  transform: ImageTransform;
+  onChange: (t: ImageTransform) => void;
+}
+
+function TransformControls({ transform, onChange }: TransformControlsProps) {
+  const reset = () => onChange({ ...DEFAULT_TRANSFORM });
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <label className="text-[11px] text-gray-400 w-10">Zoom</label>
+        <input
+          type="range"
+          min={50}
+          max={200}
+          step={1}
+          value={Math.round(transform.scale * 100)}
+          onChange={(e) =>
+            onChange({ ...transform, scale: Number(e.target.value) / 100 })
+          }
+          className="flex-1 accent-purple-500"
+        />
+        <span className="text-[11px] text-gray-400 w-10 text-right">
+          {Math.round(transform.scale * 100)}%
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="text-[11px] text-gray-400 w-10">X</label>
+        <input
+          type="range"
+          min={-80}
+          max={80}
+          step={1}
+          value={transform.offsetX}
+          onChange={(e) =>
+            onChange({ ...transform, offsetX: Number(e.target.value) })
+          }
+          className="flex-1 accent-purple-500"
+        />
+        <span className="text-[11px] text-gray-400 w-10 text-right">
+          {transform.offsetX}
+        </span>
+      </div>
+      <div className="flex items-center gap-2">
+        <label className="text-[11px] text-gray-400 w-10">Y</label>
+        <input
+          type="range"
+          min={-80}
+          max={80}
+          step={1}
+          value={transform.offsetY}
+          onChange={(e) =>
+            onChange({ ...transform, offsetY: Number(e.target.value) })
+          }
+          className="flex-1 accent-purple-500"
+        />
+        <span className="text-[11px] text-gray-400 w-10 text-right">
+          {transform.offsetY}
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={reset}
+        className="text-[11px] text-gray-500 hover:text-white"
+      >
+        Reset
+      </button>
     </div>
   );
 }
