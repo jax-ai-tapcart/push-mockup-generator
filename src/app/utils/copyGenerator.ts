@@ -1,5 +1,5 @@
-export const GEMINI_COPY_MODEL = "gemini-2.0-flash";
-export const GEMINI_SEARCH_MODEL = "gemini-2.0-flash";
+export const GEMINI_COPY_MODEL = "gemini-2.5-flash";
+export const GEMINI_SEARCH_MODEL = "gemini-2.5-flash";
 
 /**
  * Read the Gemini API key. Prefers a user-provided key from localStorage,
