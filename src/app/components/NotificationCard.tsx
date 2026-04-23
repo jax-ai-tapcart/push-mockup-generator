@@ -1,5 +1,20 @@
 import { forwardRef } from "react";
 
+export interface ImageTransform {
+  /** Scale factor, 1.0 = 100-percent. */
+  scale: number;
+  /** Horizontal offset in pixels from center. */
+  offsetX: number;
+  /** Vertical offset in pixels from center. */
+  offsetY: number;
+}
+
+export const DEFAULT_TRANSFORM: ImageTransform = {
+  scale: 1,
+  offsetX: 0,
+  offsetY: 0,
+};
+
 export interface NotificationCardData {
   brandName: string;
   logoUrl: string;
@@ -7,6 +22,8 @@ export interface NotificationCardData {
   title: string;
   body: string;
   heroImageUrl: string;
+  logoTransform?: ImageTransform;
+  heroTransform?: ImageTransform;
 }
 
 interface NotificationCardProps {
@@ -15,6 +32,11 @@ interface NotificationCardProps {
 
 const FONT_STACK =
   "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Helvetica Neue\", sans-serif";
+
+function buildTransform(t: ImageTransform | undefined): string {
+  const tr = t ?? DEFAULT_TRANSFORM;
+  return `translate(${tr.offsetX}px, ${tr.offsetY}px) scale(${tr.scale})`;
+}
 
 export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps>(
   ({ data }, ref) => {
@@ -32,131 +54,104 @@ export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps
           fontFamily: FONT_STACK,
         }}
       >
-        {/* SECTION 1 — Text header */}
+        {/* SECTION 1 — Header: icon + title/body + timestamp */}
         <div
           style={{
             padding: 12,
             display: "flex",
-            flexDirection: "column",
-            gap: 8,
+            alignItems: "center",
+            gap: 10,
           }}
         >
-          {/* App row: icon + brand name + timestamp */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div
+          {/* 32x32 icon, vertically centered with the text block */}
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              overflow: "hidden",
+              flexShrink: 0,
+              backgroundColor: data.iconBgColor,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {data.logoUrl && (
+              <img
+                src={data.logoUrl}
+                alt={data.brandName}
+                crossOrigin="anonymous"
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  transform: buildTransform(data.logoTransform),
+                  transformOrigin: "center center",
+                }}
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.style.display = "none";
+                }}
+              />
+            )}
+          </div>
+
+          {/* Title + body block */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                overflow: "hidden",
-                flexShrink: 0,
-                backgroundColor: data.iconBgColor,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              {data.logoUrl && (
-                <img
-                  src={data.logoUrl}
-                  alt={data.brandName}
-                  crossOrigin="anonymous"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                  }}
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = "none";
-                  }}
-                />
-              )}
-            </div>
-            <span
-              style={{
-                flex: 1,
-                fontSize: 13,
+                margin: 0,
+                fontSize: 15,
                 fontWeight: 600,
-                color: "#1c1c1e",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
+                color: "#000000",
+                lineHeight: 1.25,
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
               }}
             >
-              {data.brandName}
-            </span>
-            <span style={{ fontSize: 12, color: "#8e8e93" }}>{timestamp}</span>
+              {data.title}
+            </p>
+            <p
+              style={{
+                margin: "2px 0 0",
+                fontSize: 15,
+                fontWeight: 400,
+                color: "#000000",
+                lineHeight: 1.25,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {data.body}
+            </p>
           </div>
 
-          {/* Title + body + right thumbnail */}
-          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: "#1c1c1e",
-                  lineHeight: 1.3,
-                }}
-              >
-                {data.title}
-              </p>
-              <p
-                style={{
-                  margin: "2px 0 0",
-                  fontSize: 15,
-                  fontWeight: 400,
-                  color: "#1c1c1e",
-                  opacity: 0.8,
-                  lineHeight: 1.3,
-                }}
-              >
-                {data.body}
-              </p>
-            </div>
-            {data.heroImageUrl && (
-              <div
-                style={{
-                  width: 72,
-                  height: 72,
-                  borderRadius: 12,
-                  overflow: "hidden",
-                  flexShrink: 0,
-                  backgroundColor: "#f2f2f2",
-                }}
-              >
-                <img
-                  src={data.heroImageUrl}
-                  alt="Preview"
-                  crossOrigin="anonymous"
-                  style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
-                  }}
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = "none";
-                  }}
-                />
-              </div>
-            )}
-          </div>
+          {/* Timestamp top-right */}
+          <span
+            style={{
+              fontSize: 12,
+              color: "#8e8e93",
+              alignSelf: "flex-start",
+              marginTop: 2,
+              flexShrink: 0,
+            }}
+          >
+            {timestamp}
+          </span>
         </div>
 
-        {/* SECTION 2 — Full-bleed hero image */}
+        {/* SECTION 2 — Full-bleed hero image, seamless with header above */}
         {data.heroImageUrl && (
           <div
             style={{
               width: "100%",
               height: 270,
               overflow: "hidden",
-              borderBottomLeftRadius: 20,
-              borderBottomRightRadius: 20,
+              backgroundColor: "#f2f2f2",
             }}
           >
             <img
@@ -168,6 +163,8 @@ export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps
                 height: "100%",
                 objectFit: "cover",
                 display: "block",
+                transform: buildTransform(data.heroTransform),
+                transformOrigin: "center center",
               }}
               onError={(e) => {
                 const target = e.target as HTMLImageElement;
