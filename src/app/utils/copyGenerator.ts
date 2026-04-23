@@ -114,13 +114,15 @@ export async function searchProductImages(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ google_search: {} }],
+        tools: [{ googleSearch: {} }],
+        generationConfig: { temperature: 1 },
       }),
     }
   );
 
   if (!response.ok) {
-    throw new Error(`Gemini image search error: ${response.status}`);
+    const errBody = await response.text().catch(() => "");
+    throw new Error(`Gemini image search error: ${response.status}${errBody ? ` — ${errBody.slice(0, 200)}` : ""}`);
   }
 
   const data = await response.json();
