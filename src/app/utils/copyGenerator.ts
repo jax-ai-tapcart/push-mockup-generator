@@ -1,6 +1,23 @@
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-const GEMINI_COPY_MODEL = "gemini-2.0-flash";
-const GEMINI_SEARCH_MODEL = "gemini-2.0-flash";
+export const GEMINI_COPY_MODEL = "gemini-2.0-flash";
+export const GEMINI_SEARCH_MODEL = "gemini-2.0-flash";
+
+/**
+ * Read the Gemini API key. Prefers a user-provided key from localStorage,
+ * falls back to the build-time env var if present, otherwise returns "".
+ */
+export function getGeminiApiKey(): string {
+  try {
+    const fromStorage =
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem("gemini_api_key")
+        : null;
+    if (fromStorage && fromStorage.trim()) return fromStorage.trim();
+  } catch {
+    /* localStorage may be blocked */
+  }
+  const fromEnv = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+  return fromEnv || "";
+}
 
 export interface BrandResearchResult {
   brandName: string;
@@ -13,7 +30,8 @@ export interface BrandResearchResult {
  * Optional — used only by the "AI Copy Assist" flow.
  */
 export async function researchBrand(brandUrl: string): Promise<BrandResearchResult> {
-  if (!GEMINI_API_KEY) {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
     throw new Error("No Gemini API key configured");
   }
 
@@ -36,7 +54,7 @@ Respond with JSON only, no markdown, no code fences:
 }`;
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_COPY_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_COPY_MODEL}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -76,7 +94,8 @@ export async function searchProductImages(
   brandUrl: string,
   limit = 10
 ): Promise<string[]> {
-  if (!GEMINI_API_KEY) {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
     throw new Error("No Gemini API key configured");
   }
   const cleanUrl = brandUrl.trim();
@@ -84,20 +103,12 @@ export async function searchProductImages(
     throw new Error("Please enter a brand URL");
   }
 
-  const brand = brandNameFromUrl(cleanUrl);
-  const prompt = `Use Google Search to find up to ${limit} direct product image URLs for the e-commerce brand "${brand}" (${cleanUrl}).
-
-Requirements:
-- URLs must end in .jpg, .jpeg, .png, or .webp (direct image URLs, not product page URLs)
-- Prefer hero/lifestyle product shots from the brand official site or its CDN
-- No duplicates, no tiny thumbnails, no logos
-- Return at most ${limit} URLs
-
-Respond with ONLY a raw JSON array of URL strings, no prose, no markdown, no code fences. Example:
-["https://cdn.example.com/a.jpg","https://cdn.example.com/b.jpg"]`;
+  const domain = domainFromUrl(cleanUrl);
+  const brandName = brandNameFromUrl(cleanUrl);
+  const prompt = `Search ${brandName} (${domain}) for recent lifestyle or campaign photography suitable for a mobile push notification. I'm looking for images that: show real people wearing or using the product in real-world or styled editorial settings (outdoors, at home, at an event, etc.), have strong visual energy with bold colors or dramatic lighting, feel authentic or campaign-quality rather than clinical, and where the product is visible but the overall mood and lifestyle context is the hero. Avoid: white-background studio shots, flat lay product photos, logo graphics, packaging-only images, or anything that looks like a product listing. Prioritize images from the last 6-12 months. The image should feel punchy and grab attention at small thumbnail sizes on a phone screen. Return ONLY a JSON array of up to ${limit} direct image URLs (jpg/png/webp) that are publicly accessible. No explanations, just the JSON array.`;
 
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_SEARCH_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_SEARCH_MODEL}:generateContent?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -155,6 +166,20 @@ function dedupe(arr: string[]): string[] {
     }
   }
   return out;
+}
+
+/**
+ * Return the bare hostname for a URL (e.g. "https://www.nike.com/foo" -> "nike.com").
+ * Falls back to the raw input if URL parsing fails.
+ */
+function domainFromUrl(url: string): string {
+  try {
+    const withProtocol = url.match(/^https?:\/\//) ? url : `https://${url}`;
+    const { hostname } = new URL(withProtocol);
+    return hostname.replace(/^www\./i, "");
+  } catch {
+    return url;
+  }
 }
 
 /**
