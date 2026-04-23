@@ -850,6 +850,23 @@ interface HeroInputProps {
   onBrandUrlChange: (url: string) => void;
 }
 
+const PROXY_BASE = "https://images.weserv.nl/?url=";
+function proxiedImageUrl(url: string): string {
+  try {
+    const stripped = url.replace(/^https?:\/\//, "");
+    return `${PROXY_BASE}${encodeURIComponent(stripped)}&w=400&output=webp`;
+  } catch {
+    return url;
+  }
+}
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 function HeroInput({
   row,
   onChange,
@@ -858,6 +875,10 @@ function HeroInput({
   onBrandUrlChange,
 }: HeroInputProps) {
   const heroFileInputRef = useRef<HTMLInputElement>(null);
+  const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    setFailedImages(new Set());
+  }, [row.searchResults]);
 
   const handleHeroFile = async (file: File | undefined) => {
     if (!file) return;
@@ -938,18 +959,52 @@ function HeroInput({
           )}
           {row.searchResults.length > 0 && (
             <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto p-1 border border-gray-800 rounded-lg">
-              {row.searchResults.map((url) => {
+              {row.searchResults.map((url, index) => {
                 const selected = row.heroUrl === url;
+                const failed = failedImages.has(index);
+                const selectUrl = () =>
+                  onChange({
+                    heroUrl: url,
+                    heroTransform: { ...DEFAULT_TRANSFORM },
+                  });
+                if (failed) {
+                  return (
+                    <div
+                      key={url}
+                      className={`relative aspect-square rounded overflow-hidden border-2 ${
+                        selected
+                          ? "border-purple-500"
+                          : "border-transparent"
+                      }`}
+                    >
+                      <div className="w-full h-full bg-[#1a1a1a] flex flex-col items-center justify-center gap-1 p-2">
+                        <span className="text-2xl">🔗</span>
+                        <span className="text-[10px] text-gray-400 text-center truncate w-full">
+                          {getDomain(url)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => window.open(url, "_blank")}
+                          className="text-[10px] px-2 py-0.5 bg-gray-800 hover:bg-gray-700 rounded text-gray-300"
+                        >
+                          Open image
+                        </button>
+                        <button
+                          type="button"
+                          onClick={selectUrl}
+                          className="text-[10px] px-2 py-0.5 bg-purple-700 hover:bg-purple-600 rounded text-white"
+                        >
+                          Use URL
+                        </button>
+                      </div>
+                    </div>
+                  );
+                }
                 return (
                   <button
                     key={url}
                     type="button"
-                    onClick={() =>
-                      onChange({
-                        heroUrl: url,
-                        heroTransform: { ...DEFAULT_TRANSFORM },
-                      })
-                    }
+                    onClick={selectUrl}
                     className={`relative aspect-square rounded overflow-hidden border-2 ${
                       selected
                         ? "border-purple-500"
@@ -957,11 +1012,18 @@ function HeroInput({
                     }`}
                   >
                     <img
-                      src={url}
+                      src={proxiedImageUrl(url)}
                       alt=""
                       className="w-full h-full object-cover"
                       crossOrigin="anonymous"
                       loading="lazy"
+                      onError={() =>
+                        setFailedImages((prev) => {
+                          const next = new Set(prev);
+                          next.add(index);
+                          return next;
+                        })
+                      }
                     />
                   </button>
                 );
