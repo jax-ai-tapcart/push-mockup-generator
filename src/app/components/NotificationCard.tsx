@@ -13,6 +13,9 @@ interface NotificationCardProps {
   data: NotificationCardData;
 }
 
+const FONT_STACK =
+  "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Helvetica Neue\", sans-serif";
+
 export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps>(
   ({ data }, ref) => {
     const timestamp = "now";
@@ -20,52 +23,159 @@ export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps
     return (
       <div
         ref={ref}
-        className="w-[375px] bg-white rounded-[20px] shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden"
-        style={{ fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", sans-serif' }}
+        style={{
+          width: 375,
+          backgroundColor: "#FFFFFF",
+          borderRadius: 20,
+          overflow: "hidden",
+          border: "1px solid #e0e0e0",
+          fontFamily: FONT_STACK,
+        }}
       >
-        {/* iOS Lock Screen Header */}
-        <div className="bg-[rgba(255,255,255,0.85)] backdrop-blur-xl px-4 pt-4 pb-3">
-          {/* App Row */}
-          <div className="flex items-center gap-2 mb-2">
+        {/* SECTION 1 — Text header */}
+        <div
+          style={{
+            padding: 12,
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+          }}
+        >
+          {/* App row: icon + brand name + timestamp */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div
-              className="w-8 h-8 rounded-[8px] overflow-hidden flex-shrink-0"
-              style={{ backgroundColor: data.iconBgColor }}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 8,
+                overflow: "hidden",
+                flexShrink: 0,
+                backgroundColor: data.iconBgColor,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
             >
-              <img
-                src={data.logoUrl}
-                alt={data.brandName}
-                className="w-full h-full object-cover"
-                crossOrigin="anonymous"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = "none";
-                }}
-              />
+              {data.logoUrl && (
+                <img
+                  src={data.logoUrl}
+                  alt={data.brandName}
+                  crossOrigin="anonymous"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = "none";
+                  }}
+                />
+              )}
             </div>
-            <span className="text-[13px] font-semibold text-[#1c1c1e] flex-1 uppercase tracking-wide">{data.brandName}</span>
-            <span className="text-[12px] text-[#8e8e93]">{timestamp}</span>
+            <span
+              style={{
+                flex: 1,
+                fontSize: 13,
+                fontWeight: 600,
+                color: "#1c1c1e",
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+                whiteSpace: "nowrap",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+              }}
+            >
+              {data.brandName}
+            </span>
+            <span style={{ fontSize: 12, color: "#8e8e93" }}>{timestamp}</span>
           </div>
 
-          {/* Notification content with hero image */}
-          <div className="flex gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-[15px] font-semibold text-[#1c1c1e] leading-snug">{data.title}</p>
-              <p className="text-[15px] text-[#1c1c1e] leading-snug mt-0.5 opacity-80">{data.body}</p>
-            </div>
-            <div className="w-[72px] h-[72px] rounded-[12px] overflow-hidden flex-shrink-0 bg-gray-100">
-              <img
-                src={data.heroImageUrl}
-                alt="Product"
-                className="w-full h-full object-cover"
-                crossOrigin="anonymous"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.style.display = "none";
+          {/* Title + body + right thumbnail */}
+          <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: "#1c1c1e",
+                  lineHeight: 1.3,
                 }}
-              />
+              >
+                {data.title}
+              </p>
+              <p
+                style={{
+                  margin: "2px 0 0",
+                  fontSize: 15,
+                  fontWeight: 400,
+                  color: "#1c1c1e",
+                  opacity: 0.8,
+                  lineHeight: 1.3,
+                }}
+              >
+                {data.body}
+              </p>
             </div>
+            {data.heroImageUrl && (
+              <div
+                style={{
+                  width: 72,
+                  height: 72,
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  flexShrink: 0,
+                  backgroundColor: "#f2f2f2",
+                }}
+              >
+                <img
+                  src={data.heroImageUrl}
+                  alt="Preview"
+                  crossOrigin="anonymous"
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = "none";
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
+
+        {/* SECTION 2 — Full-bleed hero image */}
+        {data.heroImageUrl && (
+          <div
+            style={{
+              width: "100%",
+              height: 270,
+              overflow: "hidden",
+              borderBottomLeftRadius: 20,
+              borderBottomRightRadius: 20,
+            }}
+          >
+            <img
+              src={data.heroImageUrl}
+              alt=""
+              crossOrigin="anonymous"
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                display: "block",
+              }}
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = "none";
+              }}
+            />
+          </div>
+        )}
       </div>
     );
   }
