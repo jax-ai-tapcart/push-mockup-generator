@@ -4,15 +4,10 @@ import html2canvas from "html2canvas";
 import {
   Loader2,
   Download,
-  Sparkles,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Trash2,
   Plus,
-  Search,
-  Settings as SettingsIcon,
-  X,
   Smile,
 } from "lucide-react";
 import Picker from "@emoji-mart/react";
@@ -23,18 +18,11 @@ import {
   type ImageTransform,
   DEFAULT_TRANSFORM,
 } from "./components/NotificationCard";
-import {
-  researchBrand,
-  brandNameFromUrl,
-  searchProductImages,
-  getGeminiApiKey,
-} from "./utils/copyGenerator";
 
-type ImageSource = "upload" | "url" | "search";
+type ImageSource = "upload" | "url";
 
 interface InputRow {
   id: string;
-  brandUrl: string;
   logoSource: ImageSource;
   logoUrl: string;
   logoDataUrl: string;
@@ -46,13 +34,6 @@ interface InputRow {
   heroTransform: ImageTransform;
   title: string;
   body: string;
-  researching: boolean;
-  researchError: string;
-  brandNameOverride: string;
-  searchResults: string[];
-  searching: boolean;
-  searchError: string;
-  showAiCopy: boolean;
 }
 
 function makeId() {
@@ -62,7 +43,6 @@ function makeId() {
 function emptyRow(): InputRow {
   return {
     id: makeId(),
-    brandUrl: "",
     logoSource: "upload",
     logoUrl: "",
     logoDataUrl: "",
@@ -74,19 +54,10 @@ function emptyRow(): InputRow {
     heroTransform: { ...DEFAULT_TRANSFORM },
     title: "",
     body: "",
-    researching: false,
-    researchError: "",
-    brandNameOverride: "",
-    searchResults: [],
-    searching: false,
-    searchError: "",
-    showAiCopy: false,
   };
 }
 
 function resolveBrandName(row: InputRow): string {
-  if (row.brandNameOverride.trim()) return row.brandNameOverride.trim();
-  if (row.brandUrl.trim()) return brandNameFromUrl(row.brandUrl.trim());
   if (row.title.trim()) return row.title.trim().slice(0, 40);
   return "Brand";
 }
@@ -149,10 +120,6 @@ export default function App() {
   const [error, setError] = useState("");
   const [isExporting, setIsExporting] = useState(false);
   const [isBulkExporting, setIsBulkExporting] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [apiKeyPresent, setApiKeyPresent] = useState<boolean>(() =>
-    Boolean(getGeminiApiKey())
-  );
 
   const singlePreviewRef = useRef<HTMLDivElement>(null);
   const bulkPreviewRef = useRef<HTMLDivElement>(null);
@@ -184,57 +151,6 @@ export default function App() {
       const next = prev.filter((r) => r.id !== id);
       return next.length === 0 ? [emptyRow()] : next;
     });
-  };
-
-  const runResearch = async (
-    row: InputRow,
-    apply: (patch: Partial<InputRow>) => void
-  ) => {
-    const url = row.brandUrl.trim();
-    if (!url) {
-      apply({ researchError: "Enter a brand URL first" });
-      return;
-    }
-    apply({ researching: true, researchError: "" });
-    try {
-      const result = await researchBrand(url);
-      apply({
-        researching: false,
-        title: result.title,
-        body: result.body,
-        brandNameOverride: result.brandName,
-      });
-    } catch (e) {
-      apply({
-        researching: false,
-        researchError: e instanceof Error ? e.message : "Research failed",
-      });
-    }
-  };
-
-  const runImageSearch = async (
-    row: InputRow,
-    apply: (patch: Partial<InputRow>) => void
-  ) => {
-    const url = row.brandUrl.trim();
-    if (!url) {
-      apply({ searchError: "Enter a brand URL first" });
-      return;
-    }
-    apply({ searching: true, searchError: "", searchResults: [] });
-    try {
-      const urls = await searchProductImages(url, 10);
-      apply({
-        searching: false,
-        searchResults: urls,
-        heroSource: "search",
-      });
-    } catch (e) {
-      apply({
-        searching: false,
-        searchError: e instanceof Error ? e.message : "Image search failed",
-      });
-    }
   };
 
   const renderCard = async (
@@ -336,39 +252,16 @@ export default function App() {
     [activeBulkRow]
   );
 
-  const refreshApiKeyIndicator = () => {
-    setApiKeyPresent(Boolean(getGeminiApiKey()));
-  };
-
   return (
     <div className="min-h-screen bg-[#0f0f0f] text-white p-8">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-8 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
-              Tapcart Push Mockup Generator
-            </h1>
-            <p className="text-gray-400">
-              Build pixel-perfect iOS push notification previews. Single or bulk.
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {!apiKeyPresent && (
-              <div className="flex items-center gap-1.5 text-xs text-yellow-400">
-                <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block" />
-                <span>API key not set</span>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setSettingsOpen(true)}
-              className="p-2 rounded-lg bg-[#1a1a1a] border border-gray-800 hover:text-white text-gray-400"
-              title="Settings"
-              aria-label="Settings"
-            >
-              <SettingsIcon className="w-5 h-5" />
-            </button>
-          </div>
+        <header className="mb-8">
+          <h1 className="text-3xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-purple-600">
+            Tapcart Push Mockup Generator
+          </h1>
+          <p className="text-gray-400">
+            Build pixel-perfect iOS push notification previews. Single or bulk.
+          </p>
         </header>
 
         <div className="flex gap-4 mb-8">
@@ -402,12 +295,7 @@ export default function App() {
 
         {mode === "single" ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <InputPanel
-              row={singleRow}
-              onChange={updateSingle}
-              onResearch={() => runResearch(singleRow, updateSingle)}
-              onImageSearch={() => runImageSearch(singleRow, updateSingle)}
-            />
+            <InputPanel row={singleRow} onChange={updateSingle} />
             <div className="space-y-6">
               <div className="bg-[#1a1a1a] rounded-xl p-6 border border-gray-800">
                 <h2 className="text-xl font-semibold mb-4">Preview</h2>
@@ -472,16 +360,6 @@ export default function App() {
                       row={row}
                       compact
                       onChange={(patch) => updateBulkRow(row.id, patch)}
-                      onResearch={() =>
-                        runResearch(row, (patch) =>
-                          updateBulkRow(row.id, patch)
-                        )
-                      }
-                      onImageSearch={() =>
-                        runImageSearch(row, (patch) =>
-                          updateBulkRow(row.id, patch)
-                        )
-                      }
                     />
                   </div>
                 ))}
@@ -554,106 +432,6 @@ export default function App() {
           </div>
         )}
       </div>
-
-      {settingsOpen && (
-        <SettingsModal
-          onClose={() => {
-            setSettingsOpen(false);
-            refreshApiKeyIndicator();
-          }}
-          onChange={refreshApiKeyIndicator}
-        />
-      )}
-    </div>
-  );
-}
-
-/* ---------------- Settings modal ---------------- */
-
-interface SettingsModalProps {
-  onClose: () => void;
-  onChange: () => void;
-}
-
-function SettingsModal({ onClose, onChange }: SettingsModalProps) {
-  const [value, setValue] = useState<string>(() => {
-    try {
-      return localStorage.getItem("gemini_api_key") || "";
-    } catch {
-      return "";
-    }
-  });
-  const [saved, setSaved] = useState(false);
-
-  const save = () => {
-    try {
-      localStorage.setItem("gemini_api_key", value.trim());
-      setSaved(true);
-      onChange();
-      setTimeout(() => setSaved(false), 1200);
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const clear = () => {
-    try {
-      localStorage.removeItem("gemini_api_key");
-      setValue("");
-      onChange();
-    } catch {
-      /* ignore */
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={onClose}
-    >
-      <div
-        className="relative w-full max-w-md rounded-xl bg-[#1a1a1a] border border-gray-800 p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute top-3 right-3 p-1 text-gray-400 hover:text-white"
-          aria-label="Close"
-        >
-          <X className="w-5 h-5" />
-        </button>
-        <h2 className="text-xl font-semibold mb-4">Settings</h2>
-        <label className="text-sm text-gray-400 mb-1 block">
-          Gemini API Key
-        </label>
-        <input
-          type="password"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="AIza..."
-          className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm font-mono"
-        />
-        <p className="mt-2 text-xs text-gray-500">
-          Stored locally in your browser. Never sent to any server except Gemini.
-        </p>
-        <div className="mt-4 flex gap-2">
-          <button
-            type="button"
-            onClick={save}
-            className="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm font-medium"
-          >
-            {saved ? "Saved" : "Save"}
-          </button>
-          <button
-            type="button"
-            onClick={clear}
-            className="px-3 py-2 bg-[#0f0f0f] border border-gray-800 hover:bg-gray-900 rounded-lg text-sm font-medium text-gray-300"
-          >
-            Clear
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
@@ -715,18 +493,10 @@ function EmojiPopover({ onPick }: EmojiPopoverProps) {
 interface InputPanelProps {
   row: InputRow;
   onChange: (patch: Partial<InputRow>) => void;
-  onResearch: () => void;
-  onImageSearch: () => void;
   compact?: boolean;
 }
 
-function InputPanel({
-  row,
-  onChange,
-  onResearch,
-  onImageSearch,
-  compact,
-}: InputPanelProps) {
+function InputPanel({ row, onChange, compact }: InputPanelProps) {
   const titleRef = useRef<HTMLInputElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
@@ -742,13 +512,7 @@ function InputPanel({
 
       <LogoInput row={row} onChange={onChange} />
 
-      <HeroInput
-        row={row}
-        onChange={onChange}
-        onImageSearch={onImageSearch}
-        onBrandUrlChange={(url) => onChange({ brandUrl: url })}
-        brandUrl={row.brandUrl}
-      />
+      <HeroInput row={row} onChange={onChange} />
 
       <div>
         <div className="flex items-center justify-between mb-1">
@@ -793,92 +557,19 @@ function InputPanel({
           className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
         />
       </div>
-
-      {/* AI Copy Assist — collapsible, secondary */}
-      <div className="border border-gray-800 rounded-lg">
-        <button
-          type="button"
-          onClick={() => onChange({ showAiCopy: !row.showAiCopy })}
-          className="w-full flex items-center justify-between px-3 py-2 text-sm text-gray-400 hover:text-white"
-        >
-          <span className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4" />
-            AI Copy Assist (optional)
-          </span>
-          <ChevronDown
-            className={`w-4 h-4 transition-transform ${
-              row.showAiCopy ? "rotate-180" : ""
-            }`}
-          />
-        </button>
-        {row.showAiCopy && (
-          <div className="px-3 pb-3 space-y-2 border-t border-gray-800 pt-3">
-            <p className="text-xs text-gray-500">
-              Use Gemini to draft the title and body from the Brand URL in the
-              Hero Image section above.
-            </p>
-            <button
-              type="button"
-              onClick={onResearch}
-              disabled={row.researching || !row.brandUrl.trim()}
-              className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5"
-            >
-              {row.researching ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Sparkles className="w-4 h-4" />
-              )}
-              Draft copy from brand URL
-            </button>
-            {row.researchError && (
-              <p className="text-xs text-red-400">{row.researchError}</p>
-            )}
-          </div>
-        )}
-      </div>
     </div>
   );
 }
 
-/* ---------------- Hero input (with Brand URL + Search) ---------------- */
+/* ---------------- Hero input ---------------- */
 
 interface HeroInputProps {
   row: InputRow;
   onChange: (patch: Partial<InputRow>) => void;
-  onImageSearch: () => void;
-  brandUrl: string;
-  onBrandUrlChange: (url: string) => void;
 }
 
-const PROXY_BASE = "https://images.weserv.nl/?url=";
-function proxiedImageUrl(url: string): string {
-  try {
-    const stripped = url.replace(/^https?:\/\//, "");
-    return `${PROXY_BASE}${encodeURIComponent(stripped)}&w=400&output=webp`;
-  } catch {
-    return url;
-  }
-}
-function getDomain(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, "");
-  } catch {
-    return url;
-  }
-}
-
-function HeroInput({
-  row,
-  onChange,
-  onImageSearch,
-  brandUrl,
-  onBrandUrlChange,
-}: HeroInputProps) {
+function HeroInput({ row, onChange }: HeroInputProps) {
   const heroFileInputRef = useRef<HTMLInputElement>(null);
-  const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
-  useEffect(() => {
-    setFailedImages(new Set());
-  }, [row.searchResults]);
 
   const handleHeroFile = async (file: File | undefined) => {
     if (!file) return;
@@ -895,10 +586,9 @@ function HeroInput({
       <SourceTabs
         value={row.heroSource}
         onChange={(src) => onChange({ heroSource: src })}
-        showSearch
       />
 
-      {row.heroSource === "upload" && (
+      {row.heroSource === "upload" ? (
         <div>
           <input
             ref={heroFileInputRef}
@@ -915,9 +605,7 @@ function HeroInput({
             {row.heroDataUrl ? "Change image" : "Upload image"}
           </button>
         </div>
-      )}
-
-      {row.heroSource === "url" && (
+      ) : (
         <input
           type="url"
           value={row.heroUrl}
@@ -925,112 +613,6 @@ function HeroInput({
           placeholder="https://cdn.example.com/hero.jpg"
           className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
         />
-      )}
-
-      {row.heroSource === "search" && (
-        <div className="space-y-2">
-          <div>
-            <label className="text-xs text-gray-500 mb-1 block">
-              Brand URL
-            </label>
-            <input
-              type="url"
-              value={brandUrl}
-              onChange={(e) => onBrandUrlChange(e.target.value)}
-              placeholder="https://yourbrand.com"
-              className="w-full px-3 py-2 bg-[#0f0f0f] border border-gray-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-white text-sm"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={onImageSearch}
-            disabled={row.searching || !brandUrl.trim()}
-            className="w-full px-3 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1.5"
-          >
-            {row.searching ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Search className="w-4 h-4" />
-            )}
-            Search product images
-          </button>
-          {row.searchError && (
-            <p className="text-xs text-red-400">{row.searchError}</p>
-          )}
-          {row.searchResults.length > 0 && (
-            <div className="grid grid-cols-3 gap-2 max-h-64 overflow-y-auto p-1 border border-gray-800 rounded-lg">
-              {row.searchResults.map((url, index) => {
-                const selected = row.heroUrl === url;
-                const failed = failedImages.has(index);
-                const selectUrl = () =>
-                  onChange({
-                    heroUrl: url,
-                    heroTransform: { ...DEFAULT_TRANSFORM },
-                  });
-                if (failed) {
-                  return (
-                    <div
-                      key={url}
-                      className={`relative aspect-square rounded overflow-hidden border-2 ${
-                        selected
-                          ? "border-purple-500"
-                          : "border-transparent"
-                      }`}
-                    >
-                      <div className="w-full h-full bg-[#1a1a1a] flex flex-col items-center justify-center gap-1 p-2">
-                        <span className="text-2xl">🔗</span>
-                        <span className="text-[10px] text-gray-400 text-center truncate w-full">
-                          {getDomain(url)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => window.open(url, "_blank")}
-                          className="text-[10px] px-2 py-0.5 bg-gray-800 hover:bg-gray-700 rounded text-gray-300"
-                        >
-                          Open image
-                        </button>
-                        <button
-                          type="button"
-                          onClick={selectUrl}
-                          className="text-[10px] px-2 py-0.5 bg-purple-700 hover:bg-purple-600 rounded text-white"
-                        >
-                          Use URL
-                        </button>
-                      </div>
-                    </div>
-                  );
-                }
-                return (
-                  <button
-                    key={url}
-                    type="button"
-                    onClick={selectUrl}
-                    className={`relative aspect-square rounded overflow-hidden border-2 ${
-                      selected
-                        ? "border-purple-500"
-                        : "border-transparent hover:border-gray-600"
-                    }`}
-                  >
-                    <img
-                      src={proxiedImageUrl(url)}
-                      alt=""
-                      className="w-full h-full object-cover"
-                      crossOrigin="anonymous"
-                      loading="lazy"
-                      onError={() =>
-                        setFailedImages((prev) => {
-                          const next = new Set(prev);
-                          next.add(index);
-                          return next;
-                        })
-                      }
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
       )}
 
       {heroSrc && (
@@ -1171,15 +753,13 @@ function LogoInput({ row, onChange }: LogoInputProps) {
 interface SourceTabsProps {
   value: ImageSource;
   onChange: (src: ImageSource) => void;
-  showSearch?: boolean;
 }
 
-function SourceTabs({ value, onChange, showSearch }: SourceTabsProps) {
+function SourceTabs({ value, onChange }: SourceTabsProps) {
   const tabs: { id: ImageSource; label: string }[] = [
     { id: "upload", label: "Upload" },
     { id: "url", label: "URL" },
   ];
-  if (showSearch) tabs.push({ id: "search", label: "Search" });
 
   return (
     <div className="flex gap-1 p-1 bg-[#0f0f0f] border border-gray-800 rounded-lg">
