@@ -30,8 +30,12 @@ interface NotificationCardProps {
   data: NotificationCardData;
 }
 
-const FONT_STACK =
-  "-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"Helvetica Neue\", sans-serif";
+/**
+ * Inter is metrically very close to SF Pro Text and is loaded as a web font,
+ * so html2canvas can actually render it correctly. SF Pro Display is a
+ * system font that html2canvas cannot reliably access on non-Apple systems.
+ */
+const FONT_STACKK = "'Inter', -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif";
 
 /**
  * Resolve a transform (defaults applied). We use `object-position` to pan
@@ -55,27 +59,27 @@ export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps
         style={{
           width: 375,
           backgroundColor: "#FFFFFF",
-          borderRadius: 20,
+          borderRadius: 14,
           overflow: "hidden",
-          border: "1px solid #e0e0e0",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
           fontFamily: FONT_STACK,
         }}
       >
         {/* SECTION 1 — Header: icon + title/body + timestamp */}
         <div
           style={{
-            padding: 12,
+            padding: "8px 10px",
             display: "flex",
             alignItems: "center",
-            gap: 10,
+            gap: 8,
           }}
         >
-          {/* 32x32 icon, vertically centered with the text block */}
+          {/* 28x28 icon with iOS-style superellipse corner br adius */}
           <div
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
+              width: 28,
+              height: 28,
+              borderRadius: 6,
               overflow: "hidden",
               flexShrink: 0,
               backgroundColor: data.iconBgColor,
@@ -113,25 +117,27 @@ export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps
                 fontSize: 15,
                 fontWeight: 600,
                 color: "#000000",
-                lineHeight: 1.25,
+                lineHeight: "1.2em",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
+                letterSpacing: "-0.01em",
               }}
             >
               {data.title}
             </p>
             <p
               style={{
-                margin: "2px 0 0",
+                margin: "1px 0 0",
                 fontSize: 15,
                 fontWeight: 400,
-                color: "#000000",
-                lineHeight: 1.25,
+                color: "#3c3c3c",
+                lineHeight: "1.2em",
                 display: "-webkit-box",
                 WebkitLineClamp: 2,
                 WebkitBoxOrient: "vertical",
                 overflow: "hidden",
+                letterSpacing: "-0.01em",
               }}
             >
               {data.body}
@@ -141,8 +147,9 @@ export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps
           {/* Timestamp top-right */}
           <span
             style={{
-              fontSize: 12,
-              color: "#8e8e93",
+              fontSize: 11,
+              fontWeight: 400,
+              color: "#aeaeb2",
               alignSelf: "flex-start",
               marginTop: 2,
               flexShrink: 0,
@@ -157,7 +164,7 @@ export const NotificationCard = forwardRef<HTMLDivElement, NotificationCardProps
           <div
             style={{
               width: "100%",
-              height: 270,
+              height: 260,
               overflow: "hidden",
               backgroundColor: "#f2f2f2",
             }}
