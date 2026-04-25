@@ -1,0 +1,29 @@
+name: Render Mockups
+
+on:
+  workflow_dispatch:
+    inputs:
+      brand:
+        description: Brand name
+        required: true
+        default: lucchese
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Playwright
+        run: npm i -g @playwright/test && npx playwright install --with-deps chromium
+      - name: Generate mockup
+        run: node .github/scripts/render.js ${{ inputs.brand }}
+      - name: Upload mockup
+        uses: actions/upload-artifact@v4
+        with:
+          name: push-mockup-${{ inputs.brand }}
+          path: mockup-output/*
+          retention-days: 7
