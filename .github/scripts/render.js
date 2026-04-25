@@ -5,7 +5,7 @@ import { join } from 'path';
 const OUT_DIR = 'mockup-output';
 mkdirSync(OUT_DIR, { recursive: true });
 
-const LUCCHESE_LOGO_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 44'%3E%3Crect width='120' height='44' fill='%2315204c'%2F%3E%3Ctext x='60' y='20' font-family='Helvetica Neue,Arial,sans-serif' font-size='11' font-weight='700' letter-spacing='2' fill='%23ffffff' text-anchor='middle' dominant-baseline='middle'%3ELUCCHESE%3C%2Ftext%3E%3C/svg%3E`;
+const LUCCHESE_LOGO_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 44'%3E%3Crect width='120' height='44' fill='%2315204c'%2F%3E%3Ctext x='60' y='22' font-family='Helvetica Neue,Arial,sans-serif' font-size='11' font-weight='700' letter-spacing='2' fill='%23ffffff' text-anchor='middle' dominant-baseline='middle'%3ELUCCHESE%3C%2Ftext%3E%3C/svg%3E`;
 
 const HERO_URL = 'https://cdn.shopify.com/s/files/1/0522/6712/2861/collections/LuccheseMens.jpg?v=1623871684';
 
@@ -47,13 +47,16 @@ body { background: #f0f0f0; display: flex; align-items: center; justify-content:
 </html>`;
 
 const browser = await chromium.launch();
-const page = await browser.newPage();
-await page.setViewportSize({ width: 750, height: 710 });
+const context = await browser.newContext({
+  viewport: { width: 750, height: 710 },
+  deviceScaleFactor: 3,
+});
+const page = await context.newPage();
 await page.setContent(html, { waitUntil: 'networkidle' });
 await page.waitForFunction(() => document.fonts.ready.then(() => true));
 await page.waitForTimeout(1000);
 const card = await page.$('.card');
 const outPath = join(OUT_DIR, 'push-lucchese.png');
-await card.screenshot({ path: outPath, scale: 'device' });
+await card.screenshot({ path: outPath });
 await browser.close();
 console.log('Saved: ' + outPath);
