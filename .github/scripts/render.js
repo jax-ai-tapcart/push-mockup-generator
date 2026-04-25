@@ -5,14 +5,9 @@ import { join } from 'path';
 const OUT_DIR = 'mockup-output';
 mkdirSync(OUT_DIR, { recursive: true });
 
-const brand = {
-  name: 'Lucchese',
-  logoUrl: 'https://www.lucchese.com/cdn/shop/files/Lucchese_Logo_Nav_v2.svg',
-  logoBgColor: '#FFFFFF',
-  title: 'Handmade Since 1883.',
-  body: 'Boots built to last a lifetime. Shop the new season.',
-  heroUrl: 'https://www.lucchese.com/cdn/shop/files/Lifestyle_Desktop_2024.jpg',
-};
+const LUCCHESE_LOGO_SVG = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 44'%3E%3Crect width='120' height='44' fill='%2315204c'%2F%3E%3Ctext x='60' y='20' font-family='Helvetica Neue,Arial,sans-serif' font-size='11' font-weight='700' letter-spacing='2' fill='%23ffffff' text-anchor='middle' dominant-baseline='middle'%3ELUCCHESE%3C%2Ftext%3E%3C/svg%3E`;
+
+const HERO_URL = 'https://cdn.shopify.com/s/files/1/0522/6712/2861/collections/LuccheseMens.jpg?v=1623871684';
 
 const html = `<!DOCTYPE html>
 <html lang="en">
@@ -23,10 +18,10 @@ const html = `<!DOCTYPE html>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=block" rel="stylesheet" />
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: #f0f0f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: 'Inter', -apple-system, sans-serif; }
+body { background: #f0f0f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
 .card { width: 375px; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.15); }
 .header { padding: 8px 10px; display: flex; align-items: center; gap: 8px; }
-.icon { width: 28px; height: 28px; border-radius: 6px; overflow: hidden; flex-shrink: 0; background: #FFFFFF; display: flex; align-items: center; justify-content: center; }
+.icon { width: 28px; height: 28px; border-radius: 6px; overflow: hidden; flex-shrink: 0; background: #15204c; display: flex; align-items: center; justify-content: center; }
 .icon img { width: 100%; height: 100%; object-fit: contain; }
 .text-block { flex: 1; min-width: 0; }
 .title { font-size: 15px; font-weight: 600; color: #000000; line-height: 1.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -0.01em; }
@@ -39,14 +34,14 @@ body { background: #f0f0f0; display: flex; align-items: center; justify-content:
 <body>
 <div class="card">
   <div class="header">
-    <div class="icon"><img src="https://www.lucchese.com/cdn/shop/files/Lucchese_Logo_Nav_v2.svg" alt="Lucchese" crossorigin="anonymous" /></div>
+    <div class="icon"><img src="${LUCCHESE_LOGO_SVG}" alt="Lucchese" /></div>
     <div class="text-block">
       <p class="title">Handmade Since 1883.</p>
       <p class="body">Boots built to last a lifetime. Shop the new season.</p>
     </div>
     <span class="timestamp">now</span>
   </div>
-  <div class="hero"><img src="https://www.lucchese.com/cdn/shop/files/Lifestyle_Desktop_2024.jpg" alt="" crossorigin="anonymous" /></div>
+  <div class="hero"><img src="${HERO_URL}" alt="" crossorigin="anonymous" /></div>
 </div>
 </body>
 </html>`;
