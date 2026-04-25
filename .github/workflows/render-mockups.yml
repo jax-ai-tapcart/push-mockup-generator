@@ -18,9 +18,15 @@ jobs:
         with:
           node-version: 20
       - name: Install Playwright
-        run: npm i -g @playwright/test && npx playwright install --with-deps chromium
+        run: |
+          cd .github/scripts
+          npm init -y --silent
+          npm i playwright --silent
+          npx playwright install --with-deps chromium
       - name: Generate mockup
-        run: node .github/scripts/render.js ${{ inputs.brand }}
+        run: cd .github/scripts && node render.js ${{ inputs.brand }}
+      - name: Copy output
+        run: mv .github/scripts/mockup-output ./mockup-output
       - name: Upload mockup
         uses: actions/upload-artifact@v4
         with:
