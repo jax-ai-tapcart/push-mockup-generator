@@ -16,9 +16,18 @@ jobs:
       - name: Patch render.js
         run: |
           sed -i 's/const CSQ=/const CSS=/g' .github/scripts/render.js
+          # tnuck: cream bg, bougainvillea hero
           sed -i 's|bg:"#865E18"|bg:"#f2ede6"|g' .github/scripts/render.js
           sed -i 's|collections/10643_MEDIUM_IMAGE_01_1845229_1907945902.webp|articles/715_ONE_SIZE_IMAGE_01_1711211_317477317.webp|g' .github/scripts/render.js
-          sed -i 's|curated just for you|curated for you|g' .github/scripts/render.js
+          # Fix card proportions to match iOS portrait notification (like Beis reference)
+          sed -i 's/width:375px/width:270px/g' .github/scripts/render.js
+          sed -i 's/border-radius:14px/border-radius:20px/g' .github/scripts/render.js
+          sed -i 's/height:260px/height:268px/g' .github/scripts/render.js
+          sed -i 's/padding:8px 10px/padding:12px 12px/g' .github/scripts/render.js
+          sed -i 's/font-size:15px;font-weight:600/font-size:13px;font-weight:600/g' .github/scripts/render.js
+          sed -i 's/font-size:15px;font-weight:400/font-size:13px;font-weight:400/g' .github/scripts/render.js
+          sed -i 's/border:1px solid #d1d1d6;//g' .github/scripts/render.js
+          sed -i 's/width:750,height:710/width:550,height:700/g' .github/scripts/render.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
