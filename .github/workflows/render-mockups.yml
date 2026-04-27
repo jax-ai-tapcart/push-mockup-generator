@@ -17,7 +17,7 @@ jobs:
         run: |
           sed -i 's/const CSQ=/const CSS=/g' .github/scripts/render.js
           sed -i 's|graph.facebook.com/shoptuckernuck/picture?type=large|tnuck.com/cdn/shop/files/favicon.png|g' .github/scripts/render.js
-          sed -i 's|10643_MEDIUM_IMAGE_01_1845229_1907945902.webp?v=1747944902|articles/cms_8c94bb0b-b319-4eec-91b5-ed57be1d6a52.png?v=1764699389|g' .github/scripts/render.js
+          sed -i 's|collections/10643_MEDIUM_IMAGE_01_1845229_1907945902.webp|articles/cms_8c94bb0b-b319-4eec-91b5-ed57be1d6a52.png|g' .github/scripts/render.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
