@@ -13,8 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Fix CSQ typo
-        run: sed -i 's/const CSQ=/const CSS=/g' .github/scripts/render.js
+      - name: Patch render.js
+        run: |
+          sed -i 's/const CSQ=/const CSS=/g' .github/scripts/render.js
+          sed -i 's|10643_MEDIUM_IMAGE_01_1845229_1907945902.webp?v=1747944902|10927_MEDIUM_IMAGE_01_1898164_-1963968445.webp?v=1664384022|g' .github/scripts/render.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
