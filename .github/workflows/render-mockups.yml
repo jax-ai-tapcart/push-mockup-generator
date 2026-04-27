@@ -18,7 +18,7 @@ jobs:
           sed -i 's/const CSQ=/const CSS=/g' .github/scripts/render.js
           sed -i 's|bg:"#865E18"|bg:"#f2ede6"|g' .github/scripts/render.js
           sed -i 's|collections/10643_MEDIUM_IMAGE_01_1845229_1907945902.webp|articles/715_ONE_SIZE_IMAGE_01_1711211_317477317.webp|g' .github/scripts/render.js
-          sed -i 's/.icon{width:28px;height:28px;/.icon{width:36px;height:36px;/g' .github/scripts/render.js
+          sed -i 's/.icon{width:28px;height:28px;/.icon{width:32px;height:32px;/g' .github/scripts/render.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
