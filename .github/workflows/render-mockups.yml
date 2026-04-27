@@ -19,7 +19,7 @@ jobs:
           # tnuck: cream bg, bougainvillea hero
           sed -i 's|bg:"#865E18"|bg:"#f2ede6"|g' .github/scripts/render.js
           sed -i 's|collections/10643_MEDIUM_IMAGE_01_1845229_1907945902.webp|articles/715_ONE_SIZE_IMAGE_01_1711211_317477317.webp|g' .github/scripts/render.js
-          # Fix card proportions to match iOS portrait notification (like Beis reference)
+          # Fix card proportions
           sed -i 's/width:375px/width:270px/g' .github/scripts/render.js
           sed -i 's/border-radius:14px/border-radius:20px/g' .github/scripts/render.js
           sed -i 's/height:260px/height:268px/g' .github/scripts/render.js
@@ -28,6 +28,8 @@ jobs:
           sed -i 's/font-size:15px;font-weight:400/font-size:12px;font-weight:400/g' .github/scripts/render.js
           sed -i 's/border:1px solid #d1d1d6;//g' .github/scripts/render.js
           sed -i 's/width:750,height:710/width:550,height:700/g' .github/scripts/render.js
+          # Enforce 1-line title: target unique font-weight:600;color:#000 pattern
+          sed -i 's/font-weight:600;color:#000;/font-weight:600;color:#000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;/g' .github/scripts/render.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
