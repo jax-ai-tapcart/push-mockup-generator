@@ -16,21 +16,8 @@ jobs:
       - name: Patch render.js
         run: |
           sed -i 's/const CSQ=/const CSS=/g' .github/scripts/render.js
-          python3 -c "
-import re
-with open('.github/scripts/render.js') as f:
-    content = f.read()
-content = content.replace(
-    'https://graph.facebook.com/shoptuckernuck/picture?type=large',
-    'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 44%22%3E%3Crect width=%22120%22 height=%2244%22 fill=%22%23865E18%22/%3E%3Ctext x=%2260%22 y=%2222%22 font-family=%22Helvetica Neue,Arial,sans-serif%22 font-size=%2214%22 font-weight=%22700%22 letter-spacing=%222%22 fill=%22white%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22%3ETNUCK%3C/text%3E%3C/svg%3E'
-)
-content = content.replace(
-    '10643_MEDIUM_IMAGE_01_1845229_1907945902.webp?v=1747944902',
-    'articles/cms_8c94bb0b-b319-4eec-91b5-ed57be1d6a52.png?v=1764699389'
-)
-with open('.github/scripts/render.js', 'w') as f:
-    f.write(content)
-"
+          sed -i 's|graph.facebook.com/shoptuckernuck/picture?type=large|tnuck.com/cdn/shop/files/favicon.png|g' .github/scripts/render.js
+          sed -i 's|10643_MEDIUM_IMAGE_01_1845229_1907945902.webp?v=1747944902|articles/cms_8c94bb0b-b319-4eec-91b5-ed57be1d6a52.png?v=1764699389|g' .github/scripts/render.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
