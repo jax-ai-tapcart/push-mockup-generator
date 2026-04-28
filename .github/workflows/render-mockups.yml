@@ -13,22 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Patch render.js
-        run: |
-          # Fix card width and proportions
-          sed -i 's/width: 375px/width: 270px/g' .github/scripts/render.js
-          sed -i 's/border-radius: 14px/border-radius: 20px/g' .github/scripts/render.js
-          sed -i 's/height: 260px/height: 190px/g' .github/scripts/render.js
-          sed -i 's/padding: 8px 10px/padding: 10px/' .github/scripts/render.js
-          # Fix font sizes
-          sed -i 's/font-size: 15px; font-weight: 600/font-size: 12px; font-weight: 600/g' .github/scripts/render.js
-          sed -i 's/font-size: 15px; font-weight: 400/font-size: 12px; font-weight: 400/g' .github/scripts/render.js
-          # Fix viewport
-          sed -i 's/width: 750, height: 710/width: 550, height: 420/g' .github/scripts/render.js
-          # Enforce 1-line title
-          sed -i 's/font-weight: 600; color: #000;/font-weight: 600; color: #000; white-space: nowrap; overflow: hidden;/g' .github/scripts/render.js
-          # Fix logo size
-          sed -i 's/width: 38px; height: 38px/width: 28px; height: 28px/g' .github/scripts/render.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
