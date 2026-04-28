@@ -29,7 +29,7 @@ const BRANDS = {
   lucchese: { logo: LUCCHESE_LOGO, bg: "#15204c", hero: LUCCHESE_HERO, title: "Built to outlast everything.", body: "Handcrafted boots that only get better with age. Shop now.", out: "push-lucchese.png" },
   prettylitter: { logo: PL_LOGO, bg: "#11BCCA", hero: PL_HERO, title: "Is your cat's litter honest?", body: "Health issues flagged early. Time to reorder.", out: "push-prettylitter.png" },
   tnuck: { logo: TNUCK_LOGO, bg: "#f2ede6", hero: TNUCK_HERO, title: "Someone else wants this too.", body: "New arrivals just landed — classic styles selling fast.", out: "push-tnuck.png" },
-  lola: { logo: LOLA_LOGO, bg: "#C4A882", hero: LOLA_HERO, title: "You'll never go back.", body: "Softest blanket you'll ever own. Grab yours.", out: "push-lola.png" },
+  lola: { logo: LOLA_LOGO, bg: "#C4A882", hero: LOLA_HERO, title: "You'll never go back.", body: "The softest blanket. Grab yours.", out: "push-lola.png" },
   ptr: { logo: PTR_LOGO, bg: "#000000", hero: PTR_HERO, title: "Your skin will thank you.", body: "Clinical actives. Real results. Shop the bestsellers.", out: "push-ptr.png" },
   greenpan: { logo: GP_LOGO, bg: "#8DB82A", hero: GP_HERO, title: "Your kitchen deserves this.", body: "Nonstick that lasts. PFAS-free ceramic, shop now.", out: "push-greenpan.png" }
 };
