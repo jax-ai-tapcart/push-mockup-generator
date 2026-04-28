@@ -1,31 +1,67 @@
-import{chromium}from "playwright";import{mkdirSync}from "fs";import{join}from "path";
-const OUT_DIR="mockup-output";
-mkdirSync(OUT_DIR,{recursive:true});
-const brand=process.argv[2]||"lucchese";
-const LUCCHESE_LOGO="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 44%22%3E%3Crect width=%22120%22 height=%2244%22 fill=%22%2315204c%22/%3E%3Ctext x=%2260%22 y=%2222%22 font-family=%22Helvetica Neue,Arial,sans-serif%22 font-size=%2211%22 font-weight=%22700%22 letter-spacing=%222%22 fill=%22%23ffffff%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22%3ELUCCHESE%3C/text%3E%3C/svg%3E";
-const LUCCHESE_HERO="https://cdn.shopify.com/s/files/1/0522/6712/2861/collections/LuccheseMens.jpg?v=1623871684";
-const PL_LOGO="https://graph.facebook.com/prettylittercats/picture?type=large";
-const PL_HERO="https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=1200&q=80";
-const TNUCK_LOGO="https://graph.facebook.com/shoptuckernuck/picture?type=large";
-const TNUCK_HERO="https://cdn.shopify.com/s/files/1/0630/4999/0366/collections/10643_MEDIUM_IMAGE_01_1845229_1907945902.webp?v=1747944902";
-const LOLA_LOGO="https://graph.facebook.com/lolablankets/picture?type=large";
-const LOLA_HERO="https://cdn.shopify.com/s/files/1/0538/5931/9979/collections/IMG_4913_1512x_c8bc4628-5d0c-410b-8c90-2440b238d161.jpg?v=1668790452";
-const PTR_LOGO="https://graph.facebook.com/peterthomasrothofficial/picture?type=large";
-const PTR_HERO="https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=1200&q=80";
-const GP_LOGO="https://graph.facebook.com/GreenPan/picture?type=large";
-const GP_HERO="https://cdn.shopify.com/s/files/1/0531/1217/6808/files/NCCC011022-001-5.jpg?v=1773683146";
-const BRANDS={lucchese:{logo:LUCCHESE_LOGO,bg:"#15204c",hero:LUCCHESE_HERO,title:"Built to outlast everything.",body:"Handcrafted boots that only get better with age. Shop now.",out:"push-lucchese.png"},prettylitter:{logo:PL_LOGO,bg:"#11BCCA",hero:PL_HERO,title:"Is your cat's litter honest?",body:"Health issues flagged early. Time to reorder.",out:"push-prettylitter.png"},tnuck:{logo:TNUCK_LOGO,bg:"#865E18",hero:TNUCK_HERO,title:"Someone else wants this too.",body:"New arrivals just landed — classic styles selling fast.",out:"push-tnuck.png"},lola:{logo:LOLA_LOGO,bg:"#C4A882",hero:LOLA_HERO,title:"You'll never go back.",body:"Softest blanket you'll ever own. Grab yours.",out:"push-lola.png"},ptr:{logo:PTR_LOGO,bg:"#000000",hero:PTR_HERO,title:"Your skin will thank you.",body:"Clinical actives. Real results. Shop the bestsellers.",out:"push-ptr.png"},greenpan:{logo:GP_LOGO,bg:"#8DB82A",hero:GP_HERO,t<tle:"Your kitchen deserves this.",body:"Nonstick that lasts. PFAS-free ceramic, shop now.",out:"push-greenpan.png"}};
-const c=BRANDS[brand]||BRANDS.lucchese;
-const CSS="*{margin:0;padding:0;box-sizing:border-box;}body{background:#f0f0f0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;}.card{width:375px;background:#fff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,15);}.header{padding:8px 10px;display:flex;align-items:center;gap:8px;}.icon{width:38px;height:38px;border-radius:20%;flex-shrink:0;border:1px solid #d1d1d6;display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden;}.icon-inner{width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:hidden;}.icon img{width:100%;height:100%;object-fit:contain;}.text-block{flex:1;min-width:0;}.title{font-size:15px;font-weight:600;color:#000;line-height:1.2em;letter-spacing:-.01em;}.body{font-size:15px;font-weight:400;color:#3c3c3c;line-height:1.2em;margin-top:1px;max-height:36px;overflow:hidden;letter-spacing:-.01em;}.timestamp{font-size:11px;font-weight:400;color:#aeaeb2;align-self:flex-start;margin-top:2px;flex-shrink:0;}.hero{width:100%;height:260px;overflow:hidden;background:#f2f2f2;}.hero img{width:100%;height:100%;object-fit:cover;display:block;}";
-const html="<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"UTF-8\"/><link rel=\"preconnect\" href=\"https://fonts.googleapis.com\"/><link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin/><link href=\"https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=block\" rel=\"stylesheet\"/><style>"+CSS+"</style><style>.icon-inner{background:"+c.bg+";}</style></head><body><div class=\"card\"><div class=\"header\"><div class=\"icon\"><div class=\"icon-inner\"><img src=\""+c.logo+"\" alt=\"brand\"/></div></div><div class=\"text-block\"><p class=\"title\">"+c.title+"</p><p class=\"body\">"+c.body+"</p></div><span class=\"timestamp\">now</span></div><div class=\"hero\"><img src=\""+c.hero+"\" alt=\"\" crossorigin=\"anonymous\"/></div></div></body></html>";
-const browser=await chromium.launch();
-const ctx=await browser.newContext({viewport:{width:750,height:710},deviceScaleFactor:4});
-const page=await ctx.newPage();
-await page.setContent(html,{waitUntil:"networkidle"});
-await page.waitForFunction(()=>document.fonts.ready.then(()=>true));
+import { chromium } from "playwright";
+import { mkdirSync } from "fs";
+import { join } from "path";
+
+const OUT_DIR = "mockup-output";
+mkdirSync(OUT_DIR, { recursive: true });
+
+const brand = process.argv[2] || "lucchese";
+
+const LUCCHESE_LOGO = "data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 120 44%22%3E%3Crect width=%22120%22 height=%2244%22 fill=%22%2315204c%22/%3E%3Ctext x=%2260%22 y=%2222%22 font-family=%22Helvetica Neue,Arial,sans-serif%22 font-size=%2211%22 font-weight=%22700%22 letter-spacing=%222%22 fill=%22%23ffffff%22 text-anchor=%22middle%22 dominant-baseline=%22middle%22%3ELUCCHESE%3C/text%3E%3C/svg%3E";
+const LUCCHESE_HERO = "https://cdn.shopify.com/s/files/1/0522/6712/2861/collections/LuccheseMens.jpg?v=1623871684";
+
+const PL_LOGO = "https://graph.facebook.com/prettylittercats/picture?type=large";
+const PL_HERO = "https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?w=1200&q=80";
+
+const TNUCK_LOGO = "https://graph.facebook.com/shoptuckernuck/picture?type=large";
+const TNUCK_HERO = "https://cdn.shopify.com/s/files/1/0630/4999/0366/collections/10643_MEDIUM_IMAGE_01_1845229_1907945902.webp?v=1747944902";
+
+const LOLA_LOGO = "https://graph.facebook.com/lolablankets/picture?type=large";
+const LOLA_HERO = "https://cdn.shopify.com/s/files/1/0538/5931/9979/collections/IMG_4913_1512x_c8bc4628-5d0c-410b-8c90-2440b238d161.jpg?v=1668790452";
+
+const PTR_LOGO = "https://graph.facebook.com/peterthomasrothofficial/picture?type=large";
+const PTR_HERO = "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=1200&q=80";
+
+const GP_LOGO = "https://graph.facebook.com/GreenPan/picture?type=large";
+const GP_HERO = "https://cdn.shopify.com/s/files/1/0531/1217/6808/files/NCCC011022-001-5.jpg?v=1773683146";
+
+const BRANDS = {
+  lucchese: { logo: LUCCHESE_LOGO, bg: "#15204c", hero: LUCCHESE_HERO, title: "Built to outlast everything.", body: "Handcrafted boots that only get better with age. Shop now.", out: "push-lucchese.png" },
+  prettylitter: { logo: PL_LOGO, bg: "#11BCCA", hero: PL_HERO, title: "Is your cat's litter honest?", body: "Health issues flagged early. Time to reorder.", out: "push-prettylitter.png" },
+  tnuck: { logo: TNUCK_LOGO, bg: "#f2ede6", hero: TNUCK_HERO, title: "Someone else wants this too.", body: "New arrivals just landed — classic styles selling fast.", out: "push-tnuck.png" },
+  lola: { logo: LOLA_LOGO, bg: "#C4A882", hero: LOLA_HERO, title: "You'll never go back.", body: "Softest blanket you'll ever own. Grab yours.", out: "push-lola.png" },
+  ptr: { logo: PTR_LOGO, bg: "#000000", hero: PTR_HERO, title: "Your skin will thank you.", body: "Clinical actives. Real results. Shop the bestsellers.", out: "push-ptr.png" },
+  greenpan: { logo: GP_LOGO, bg: "#8DB82A", hero: GP_HERO, title: "Your kitchen deserves this.", body: "Nonstick that lasts. PFAS-free ceramic, shop now.", out: "push-greenpan.png" }
+};
+
+const c = BRANDS[brand] || BRANDS.lucchese;
+
+const CSS = `
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #f0f0f0; display: flex; align-items: center; justify-content: center; min-height: 100vh; font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif; }
+.card { width: 375px; background: #fff; border-radius: 14px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,.15); }
+.header { padding: 8px 10px; display: flex; align-items: center; gap: 8px; }
+.icon { width: 38px; height: 38px; border-radius: 20%; flex-shrink: 0; border: 1px solid #d1d1d6; display: flex; align-items: center; justify-content: center; background: #fff; overflow: hidden; }
+.icon-inner { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+.icon img { width: 100%; height: 100%; object-fit: contain; }
+.text-block { flex: 1; min-width: 0; }
+.title { font-size: 15px; font-weight: 600; color: #000; line-height: 1.2em; letter-spacing: -.01em; }
+.body { font-size: 15px; font-weight: 400; color: #3c3c3c; line-height: 1.2em; margin-top: 1px; max-height: 36px; overflow: hidden; letter-spacing: -.01em; }
+.timestamp { font-size: 11px; font-weight: 400; color: #aeaeb2; align-self: flex-start; margin-top: 2px; flex-shrink: 0; }
+.hero { width: 100%; height: 260px; overflow: hidden; background: #f2f2f2; }
+.hero img { width: 100%; height: 100%; object-fit: cover; display: block; }
+`;
+
+const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/><link rel="preconnect" href="https://fonts.googleapis.com"/><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=block" rel="stylesheet"/><style>${CSS}</style><style>.icon-inner{background:${c.bg};}</style></head><body><div class="card"><div class="header"><div class="icon"><div class="icon-inner"><img src="${c.logo}" alt="brand"/></div></div><div class="text-block"><p class="title">${c.title}</p><p class="body">${c.body}</p></div><span class="timestamp">now</span></div><div class="hero"><img src="${c.hero}" alt="" crossorigin="anonymous"/></div></div></body></html>`;
+
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 750, height: 710 }, deviceScaleFactor: 4 });
+const page = await ctx.newPage();
+await page.setContent(html, { waitUntil: "networkidle" });
+await page.waitForFunction(() => document.fonts.ready.then(() => true));
 await page.waitForTimeout(1000);
-const card=await page.$(".card");
-const outPath=join(OUT_DIR,c.out);
-await card.screenshot({path:outPath});
+const card = await page.$(".card");
+const outPath = join(OUT_DIR, c.out);
+await card.screenshot({ path: outPath });
 await browser.close();
-console.log("Saved: "+outPath);
+console.log("Saved: " + outPath);
