@@ -13,6 +13,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Patch render.js
+        run: |
+          # Card width, radius, hero height
+          sed -i 's/width: 375px/width: 270px/g' .github/scripts/render.js
+          sed -i 's/border-radius: 14px/border-radius: 20px/g' .github/scripts/render.js
+          sed -i 's/height: 260px/height: 150px/g' .github/scripts/render.js
+          # Header padding
+          sed -i 's/padding: 8px 10px/padding: 10px/g' .github/scripts/render.js
+          # Font sizes
+          sed -i 's/font-size: 15px; font-weight: 600/font-size: 12px; font-weight: 600/g' .github/scripts/render.js
+          sed -i 's/font-size: 15px; font-weight: 400/font-size: 12px; font-weight: 400/g' .github/scripts/render.js
+          sed -i 's/font-size: 11px/font-size: 10px/g' .github/scripts/render.js
+          # Icon size
+          sed -i 's/width: 38px; height: 38px/width: 28px; height: 28px/g' .github/scripts/render.js
+          # Viewport
+          sed -i 's/width: 750, height: 710/width: 550, height: 350/g' .github/scripts/render.js
+          sed -i 's/deviceScaleFactor: 4/deviceScaleFactor: 3/g' .github/scripts/render.js
+          # Enforce 1-line title
+          sed -i 's/font-weight: 600; color: #000; line-height: 1.2em; letter-spacing: -.01em;/font-weight: 600; color: #000; line-height: 1.2em; letter-spacing: -.01em; white-space: nowrap; overflow: hidden;/g' .github/scripts/render.js
+          # 2-line body clamp
+          sed -i 's/max-height: 36px; overflow: hidden;/display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;/g' .github/scripts/render.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
