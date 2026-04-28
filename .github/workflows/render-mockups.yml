@@ -20,6 +20,8 @@ jobs:
           sed -i 's|bg:"#865E18"|bg:"#f2ede6"|g' .github/scripts/render.js
           sed -i 's|collections/10643_MEDIUM_IMAGE_01_1845229_1907945902.webp|articles/715_ONE_SIZE_IMAGE_01_1711211_317477317.webp|g' .github/scripts/render.js
           sed -i 's|title:"Dressed for wherever life takes you."|title:"Wherever life takes you."|g' .github/scripts/render.js
+          # ptr: use real brand hero from context.dev scrape
+          sed -i 's|images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=1200\&q=80|www.peterthomasroth.com/cdn/shop/files/250826_Nav_Card_quiz_620x827_d0acef10-32f4-4e7a-bfc2-15b4e9120ef0.jpg?v=1756916739|g' .github/scripts/render.js
           # Fix card proportions
           sed -i 's/width:375px/width:270px/g' .github/scripts/render.js
           sed -i 's/border-radius:14px/border-radius:20px/g' .github/scripts/render.js
